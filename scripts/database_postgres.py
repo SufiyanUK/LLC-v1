@@ -22,6 +22,10 @@ class TrackingDatabase:
         if not database_url:
             raise ValueError("DATABASE_URL environment variable is required for PostgreSQL")
         
+        # Railway sometimes uses postgres:// instead of postgresql://
+        if database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        
         # Parse the URL
         result = urlparse(database_url)
         self.db_config = {
@@ -29,14 +33,27 @@ class TrackingDatabase:
             'user': result.username,
             'password': result.password,
             'host': result.hostname,
-            'port': result.port
+            'port': result.port or 5432
         }
         
-        self.init_database()
+        print(f"[POSTGRES] Connecting to: {self.db_config['host']}:{self.db_config['port']}/{self.db_config['database']}")
+        
+        try:
+            self.init_database()
+            print("[POSTGRES] Database initialized successfully")
+        except Exception as e:
+            print(f"[POSTGRES] ERROR initializing database: {e}")
+            raise
     
     def get_connection(self):
         """Get a new database connection"""
-        return psycopg2.connect(**self.db_config)
+        try:
+            conn = psycopg2.connect(**self.db_config)
+            return conn
+        except Exception as e:
+            print(f"[POSTGRES] Connection error: {e}")
+            print(f"[POSTGRES] Config: host={self.db_config['host']}, port={self.db_config['port']}, db={self.db_config['database']}")
+            raise
     
     def init_database(self):
         """Initialize database tables"""

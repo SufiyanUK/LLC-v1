@@ -87,12 +87,54 @@ async def root():
     
     return HTMLResponse(content="<h1>Web interface not found</h1>")
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint with database connectivity test"""
+    import os
+    
+    health_status = {
+        "status": "healthy",
+        "environment": "railway" if os.getenv('DATABASE_URL') else "local",
+        "database": {
+            "type": "unknown",
+            "connected": False,
+            "error": None
+        }
+    }
+    
+    try:
+        # Try to initialize database connection
+        from scripts.database_factory import TrackingDatabase
+        db = TrackingDatabase()
+        
+        # Check database type
+        if os.getenv('DATABASE_URL'):
+            health_status["database"]["type"] = "postgresql"
+            # Try to get stats to verify connection
+            stats = db.get_statistics()
+            health_status["database"]["connected"] = True
+            health_status["database"]["stats"] = stats
+        else:
+            health_status["database"]["type"] = "sqlite"
+            stats = db.get_statistics()
+            health_status["database"]["connected"] = True
+            health_status["database"]["stats"] = stats
+            
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["database"]["error"] = str(e)
+    
+    return health_status
+
 @app.get("/api")
 async def api_docs():
     """API documentation"""
     return {
         "name": "Employee Tracker v2",
         "endpoints": {
+            "System": {
+                "GET /health": "Health check with database connectivity test"
+            },
             "Tracking": {
                 "POST /track/initialize": "Initialize tracking with company configs",
                 "POST /track/add-company": "Add or update company tracking",
