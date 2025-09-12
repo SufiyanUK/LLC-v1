@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Tracker v3 - Enhanced Management</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #718096;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            background: white;
+            padding: 10px;
+            border-radius: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: #f7fafc;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #4a5568;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 768px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .card h2 .icon {
+            margin-right: 10px;
+            font-size: 24px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .company-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .company-box {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .company-box:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        
+        .company-box.selected {
+            background: #edf2f7;
+            border-color: #667eea;
+        }
+        
+        .company-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        
+        .company-count {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .company-count input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #cbd5e0;
+            border-radius: 5px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #718096;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        
+        .employee-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .employee-item {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .employee-info {
+            flex: 1;
+        }
+        
+        .employee-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        
+        .employee-details {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .employee-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        
+        .status-active {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status-departed {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .status-deleted {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .message.success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .message.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .message.info {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .history-item {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .history-company {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .history-date {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .history-details {
+            color: #4a5568;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Employee Tracker</h1>
+            <p class="subtitle">Track senior employees and monitor for departures</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('track')">Track Employees</button>
+            <button class="tab" onclick="showTab('monitor')">👥 Monitor</button>
+            <button class="tab" onclick="showTab('backup')"> Backup/Restore</button>
+            <button class="tab" onclick="showTab('departures')"> Departures</button>
+            <button class="tab" onclick="showTab('history')"> Fetch History</button>
+            <button class="tab" onclick="showTab('config')">⚙️Configuration</button>
+        </div>
+        
+        <!-- Track Tab -->
+        <div id="track-tab" class="tab-content active">
+            <div class="main-grid">
+                <div class="card">
+                    <h2><span class="icon">🏢</span> Select Companies</h2>
+                    <p style="color: #718096; margin-bottom: 15px;">Select from existing companies to track</p>
+                    <div class="company-grid" id="companyGrid">
+                        <!-- Companies will be loaded here -->
+                    </div>
+                    <button class="btn" onclick="initializeTracking()">Initialize Selected Companies</button>
+                </div>
+                
+                <div class="card">
+                    <h2><span class="icon">➕</span> Add Custom Company</h2>
+                    <p style="color: #718096; margin-bottom: 15px;">Track employees from a new company not in the list</p>
+                    <div class="form-group">
+                        <label for="customCompany">Company Name</label>
+                        <input type="text" id="customCompany" placeholder="e.g., Tesla, SpaceX, etc.">
+                    </div>
+                    <div class="form-group">
+                        <label for="customCount">Number of Employees to Track</label>
+                        <input type="number" id="customCount" min="1" max="100" value="5">
+                    </div>
+                    <button class="btn" onclick="addCustomCompany()">Add Custom Company</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon">📈</span> Tracking Status</h2>
+                <div class="stats-grid" id="statusStats">
+                    <div class="stat-card">
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">Total Tracked</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">Active</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">Departed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">Credits Used</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Monitor Tab -->
+        <div id="monitor-tab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">👥</span> Tracked Employees</h2>
+                <div id="employeeList" class="employee-list">
+                    <!-- Employees will be loaded here -->
+                </div>
+            </div>
+            
+            <div class="card" style="margin-top: 30px;">
+                <h2><span class="icon">🔍</span> Departure Check</h2>
+                <p style="color: #718096; margin-bottom: 15px;">Check all tracked employees for company changes (uses 1 credit per employee)</p>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="sendAlerts" checked>
+                        Send email alerts for departures
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="alertEmail">Alert Email (optional)</label>
+                    <input type="email" id="alertEmail" placeholder="alerts@example.com">
+                </div>
+                <button class="btn" onclick="runDepartureCheck()">Run Departure Check</button>
+                <button class="btn btn-secondary" onclick="runTestCheck()" style="margin-left: 10px;">Test Check (No Credits)</button>
+                <div id="checkStatus" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+        
+        <!-- Backup/Restore Tab -->
+        <div id="backup-tab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">♻️</span> Deleted Employees</h2>
+                <p style="color: #718096; margin-bottom: 15px;">Employees removed from tracking can be restored here</p>
+                <div id="deletedList" class="employee-list">
+                    <!-- Deleted employees will be loaded here -->
+                </div>
+                <button class="btn btn-secondary" onclick="loadDeletedEmployees()">Refresh List</button>
+            </div>
+        </div>
+        
+        <!-- Departures Tab -->
+        <div id="departures-tab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">🚪</span> Departure History</h2>
+                <div id="departuresList">
+                    <!-- Departures will be loaded here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- History Tab -->
+        <div id="history-tab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">📜</span> Fetch History</h2>
+                <p style="color: #718096; margin-bottom: 15px;">Complete history of all employee fetches and credit usage</p>
+                <div id="historyList">
+                    <!-- Fetch history will be loaded here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Configuration Tab -->
+        <div id="config-tab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">⚙️</span> System Configuration</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="apiStatus">✅</div>
+                        <div class="stat-label">API Status</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="dbStatus">✅</div>
+                        <div class="stat-label">Database Status</div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="checkSystemStatus()">Check System Status</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8002';
+        let selectedCompanies = {};
+        let companySuggestions = {};
+        
+        // Initialize on load
+        window.onload = function() {
+            loadCompanies();
+            loadStatus();
+            loadEmployees();
+        };
+        
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active from all tab buttons
+            document.querySelectorAll('.tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Set active button
+            event.target.classList.add('active');
+            
+            // Load data for specific tabs
+            if (tabName === 'monitor') {
+                loadEmployees();
+            } else if (tabName === 'backup') {
+                loadDeletedEmployees();
+            } else if (tabName === 'departures') {
+                loadDepartures();
+            } else if (tabName === 'history') {
+                loadFetchHistory();
+            }
+        }
+        
+        // Load companies
+        async function loadCompanies() {
+            try {
+                const [companiesRes, suggestionsRes] = await Promise.all([
+                    fetch(`${API_BASE}/companies`),
+                    fetch(`${API_BASE}/company-suggestions`)
+                ]);
+                
+                const companies = await companiesRes.json();
+                const suggestions = await suggestionsRes.json();
+                
+                companySuggestions = suggestions.suggestions;
+                
+                const grid = document.getElementById('companyGrid');
+                grid.innerHTML = '';
+                
+                companies.companies.forEach(company => {
+                    const suggestion = companySuggestions[company] || { recommended: 5 };
+                    const box = document.createElement('div');
+                    box.className = 'company-box';
+                    box.innerHTML = `
+                        <div class="company-name">${company}</div>
+                        <div style="color: #718096; font-size: 12px;">Rec: ${suggestion.recommended}</div>
+                        <div class="company-count">
+                            <label>Count:</label>
+                            <input type="number" id="count-${company}" min="0" max="100" value="0" 
+                                   onchange="updateCompanySelection('${company}')">
+                        </div>
+                    `;
+                    box.onclick = (e) => {
+                        if (e.target.tagName !== 'INPUT') {
+                            toggleCompany(company, box);
+                        }
+                    };
+                    grid.appendChild(box);
+                });
+            } catch (error) {
+                console.error('Error loading companies:', error);
+            }
+        }
+        
+        // Toggle company selection
+        function toggleCompany(company, element) {
+            const input = document.getElementById(`count-${company}`);
+            if (selectedCompanies[company]) {
+                delete selectedCompanies[company];
+                element.classList.remove('selected');
+                input.value = 0;
+            } else {
+                const suggestion = companySuggestions[company] || { recommended: 5 };
+                selectedCompanies[company] = suggestion.recommended;
+                element.classList.add('selected');
+                input.value = suggestion.recommended;
+            }
+        }
+        
+        // Update company selection
+        async function updateCompanySelection(company) {
+            const count = parseInt(document.getElementById(`count-${company}`).value);
+            const box = document.getElementById(`count-${company}`).closest('.company-box');
+            
+            if (count > 0) {
+                selectedCompanies[company] = count;
+                box.classList.add('selected');
+                
+                // Check if already tracking employees from this company
+                try {
+                    const response = await fetch(`${API_BASE}/track/company/${company}/status`);
+                    const data = await response.json();
+                    
+                    if (data.currently_tracking > 0) {
+                        // Show warning in the company box
+                        let warningDiv = box.querySelector('.warning');
+                        if (!warningDiv) {
+                            warningDiv = document.createElement('div');
+                            warningDiv.className = 'warning';
+                            warningDiv.style.cssText = 'color: #f56565; font-size: 11px; margin-top: 5px;';
+                            box.appendChild(warningDiv);
+                        }
+                        warningDiv.textContent = `⚠️ Already tracking ${data.currently_tracking} employees`;
+                    }
+                } catch (error) {
+                    console.log('Could not check existing employees');
+                }
+            } else {
+                delete selectedCompanies[company];
+                box.classList.remove('selected');
+                const warningDiv = box.querySelector('.warning');
+                if (warningDiv) warningDiv.remove();
+            }
+        }
+        
+        // Initialize tracking
+        async function initializeTracking() {
+            if (Object.keys(selectedCompanies).length === 0) {
+                showMessage('Please select at least one company', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/track/initialize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_configs: selectedCompanies })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    loadStatus();
+                    loadEmployees();
+                    selectedCompanies = {};
+                    loadCompanies(); // Reset selection
+                } else {
+                    showMessage('Failed to initialize tracking', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Add custom company
+        async function addCustomCompany() {
+            const companyName = document.getElementById('customCompany').value.trim();
+            const employeeCount = parseInt(document.getElementById('customCount').value);
+            
+            if (!companyName) {
+                showMessage('Please enter a company name', 'error');
+                return;
+            }
+            
+            if (!employeeCount || employeeCount < 1) {
+                showMessage('Please enter a valid employee count', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/track/custom-company`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        company_name: companyName,
+                        employee_count: employeeCount
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    document.getElementById('customCompany').value = '';
+                    document.getElementById('customCount').value = '5';
+                    loadStatus();
+                    loadEmployees();
+                } else {
+                    showMessage(data.message || 'Failed to add custom company', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Load status
+        async function loadStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/track/status`);
+                const data = await response.json();
+                
+                const stats = document.getElementById('statusStats');
+                stats.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${data.total_tracked || 0}</div>
+                        <div class="stat-label">Total Tracked</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.active || 0}</div>
+                        <div class="stat-label">Active</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.departed || 0}</div>
+                        <div class="stat-label">Departed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.total_credits_used || 0}</div>
+                        <div class="stat-label">Credits Used</div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading status:', error);
+            }
+        }
+        
+        // Load employees
+        async function loadEmployees() {
+            try {
+                const response = await fetch(`${API_BASE}/track/employees`);
+                const data = await response.json();
+                
+                const list = document.getElementById('employeeList');
+                list.innerHTML = '';
+                
+                if (data.employees.length === 0) {
+                    list.innerHTML = '<p style="color: #718096;">No employees tracked yet</p>';
+                    return;
+                }
+                
+                // Group employees by company
+                const byCompany = {};
+                data.employees.forEach(emp => {
+                    const company = emp.company;
+                    if (!byCompany[company]) {
+                        byCompany[company] = [];
+                    }
+                    byCompany[company].push(emp);
+                });
+                
+                // Sort companies alphabetically
+                const sortedCompanies = Object.keys(byCompany).sort();
+                
+                // Display grouped employees
+                sortedCompanies.forEach(company => {
+                    // Create company section
+                    const companySection = document.createElement('div');
+                    companySection.style.cssText = 'margin-bottom: 30px;';
+                    
+                    // Company header
+                    const header = document.createElement('div');
+                    header.style.cssText = 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 15px; border-radius: 10px 10px 0 0; font-weight: 600; text-transform: capitalize;';
+                    header.innerHTML = `
+                        🏢 ${company} 
+                        <span style="font-weight: normal; font-size: 14px;">(${byCompany[company].length} employees)</span>
+                    `;
+                    companySection.appendChild(header);
+                    
+                    // Company employees
+                    const employeeContainer = document.createElement('div');
+                    employeeContainer.style.cssText = 'border: 2px solid #e2e8f0; border-top: none; border-radius: 0 0 10px 10px; padding: 10px;';
+                    
+                    byCompany[company].forEach(emp => {
+                        const item = document.createElement('div');
+                        item.className = 'employee-item';
+                        item.innerHTML = `
+                            <div class="employee-info">
+                                <div class="employee-name">
+                                    ${emp.name}
+                                    <span class="status-badge status-${emp.status}">${emp.status}</span>
+                                </div>
+                                <div class="employee-details">
+                                    ${emp.title}
+                                    ${emp.linkedin_url ? `| <a href="${emp.linkedin_url}" target="_blank">LinkedIn</a>` : ''}
+                                </div>
+                            </div>
+                            <div class="employee-actions">
+                                <button class="btn btn-danger btn-small" onclick="deleteEmployee('${emp.pdl_id}')">Delete</button>
+                            </div>
+                        `;
+                        employeeContainer.appendChild(item);
+                    });
+                    
+                    companySection.appendChild(employeeContainer);
+                    list.appendChild(companySection);
+                });
+            } catch (error) {
+                console.error('Error loading employees:', error);
+            }
+        }
+        
+        // Delete employee
+        async function deleteEmployee(pdlId) {
+            if (!confirm('Remove this employee from tracking? (Can be restored later)')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/track/employee/${pdlId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Employee removed from tracking', 'success');
+                    loadEmployees();
+                    loadStatus();
+                } else {
+                    showMessage('Failed to remove employee', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Load deleted employees
+        async function loadDeletedEmployees() {
+            try {
+                const response = await fetch(`${API_BASE}/track/deleted`);
+                const data = await response.json();
+                
+                const list = document.getElementById('deletedList');
+                list.innerHTML = '';
+                
+                if (data.deleted_employees.length === 0) {
+                    list.innerHTML = '<p style="color: #718096;">No deleted employees</p>';
+                    return;
+                }
+                
+                data.deleted_employees.forEach(emp => {
+                    const item = document.createElement('div');
+                    item.className = 'employee-item';
+                    item.innerHTML = `
+                        <div class="employee-info">
+                            <div class="employee-name">
+                                ${emp.name}
+                                <span class="status-badge status-deleted">Deleted</span>
+                            </div>
+                            <div class="employee-details">
+                                ${emp.title} at ${emp.company}
+                            </div>
+                        </div>
+                        <div class="employee-actions">
+                            <button class="btn btn-success btn-small" onclick="restoreEmployee('${emp.pdl_id}')">Restore</button>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading deleted employees:', error);
+            }
+        }
+        
+        // Restore employee
+        async function restoreEmployee(pdlId) {
+            try {
+                const response = await fetch(`${API_BASE}/track/employee/${pdlId}/restore`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Employee restored to tracking', 'success');
+                    loadDeletedEmployees();
+                    loadEmployees();
+                    loadStatus();
+                } else {
+                    showMessage('Failed to restore employee', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Run departure check
+        async function runDepartureCheck() {
+            const sendAlerts = document.getElementById('sendAlerts').checked;
+            const alertEmail = document.getElementById('alertEmail').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/check/monthly`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        send_alerts: sendAlerts,
+                        alert_email: alertEmail
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Departure check started', 'info');
+                    checkStatus();
+                } else {
+                    showMessage(data.detail || 'Failed to start departure check', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Check status
+        async function checkStatus() {
+            const statusDiv = document.getElementById('checkStatus');
+            statusDiv.innerHTML = '<div class="loading"></div> Checking...';
+            
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/check/status`);
+                    const data = await response.json();
+                    
+                    if (!data.is_checking) {
+                        clearInterval(interval);
+                        statusDiv.innerHTML = `
+                            <div class="message info">
+                                ${data.check_message}
+                                ${data.last_check ? `<br>Last check: ${new Date(data.last_check).toLocaleString()}` : ''}
+                            </div>
+                        `;
+                        loadDepartures();
+                    } else {
+                        statusDiv.innerHTML = `
+                            <div class="loading"></div> 
+                            ${data.check_message} (${data.check_progress}%)
+                        `;
+                    }
+                } catch (error) {
+                    clearInterval(interval);
+                    statusDiv.innerHTML = '<div class="message error">Error checking status</div>';
+                }
+            }, 2000);
+        }
+        
+        // Load departures
+        async function loadDepartures() {
+            try {
+                const response = await fetch(`${API_BASE}/check/history`);
+                const data = await response.json();
+                
+                const list = document.getElementById('departuresList');
+                list.innerHTML = '';
+                
+                if (data.departures.length === 0) {
+                    list.innerHTML = '<p style="color: #718096;">No departures detected yet</p>';
+                    return;
+                }
+                
+                // Show alert level summary
+                if (data.counts) {
+                    const summary = document.createElement('div');
+                    summary.style.cssText = 'padding: 15px; background: #f7fafc; border-radius: 10px; margin-bottom: 20px;';
+                    summary.innerHTML = `
+                        <div style="font-weight: 600; margin-bottom: 10px;">Alert Summary:</div>
+                        <div style="display: flex; gap: 20px;">
+                            ${data.counts.level_3 > 0 ? `<div>🔴 Level 3 (Startup): ${data.counts.level_3}</div>` : ''}
+                            ${data.counts.level_2 > 0 ? `<div>🟠 Level 2 (Building): ${data.counts.level_2}</div>` : ''}
+                            ${data.counts.level_1 > 0 ? `<div>🟡 Level 1 (Departed): ${data.counts.level_1}</div>` : ''}
+                        </div>
+                    `;
+                    list.appendChild(summary);
+                }
+                
+                // Display departures with alert levels
+                data.departures.forEach(dep => {
+                    const alertLevel = dep.alert_level || 1;
+                    const alertColors = {
+                        3: { bg: '#fed7d7', border: '#fc8181', icon: '🔴', label: 'STARTUP' },
+                        2: { bg: '#feebc8', border: '#f6ad55', icon: '🟠', label: 'BUILDING' },
+                        1: { bg: '#fefcbf', border: '#f6e05e', icon: '🟡', label: 'DEPARTED' }
+                    };
+                    const alert = alertColors[alertLevel] || alertColors[1];
+                    
+                    const item = document.createElement('div');
+                    item.className = 'history-item';
+                    item.style.cssText = `background: ${alert.bg}; border-left: 4px solid ${alert.border};`;
+                    
+                    // Build signals display
+                    let signalsHtml = '';
+                    if (dep.alert_signals && dep.alert_signals.length > 0) {
+                        signalsHtml = `
+                            <div style="margin-top: 8px; font-size: 12px; color: #4a5568;">
+                                <strong>Signals:</strong> ${dep.alert_signals.slice(0, 3).join(' • ')}
+                            </div>
+                        `;
+                    }
+                    
+                    item.innerHTML = `
+                        <div class="history-header">
+                            <div class="history-company">
+                                ${alert.icon} ${dep.name}
+                                <span style="background: ${alert.border}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 10px;">
+                                    ${alert.label}
+                                </span>
+                            </div>
+                            <div class="history-date">${new Date(dep.detected_date).toLocaleDateString()}</div>
+                        </div>
+                        <div class="history-details">
+                            Left ${dep.old_company} (${dep.old_title})<br>
+                            → Now at ${dep.new_company} ${dep.new_title ? `(${dep.new_title})` : ''}
+                            ${dep.headline ? `<br><em>"${dep.headline}"</em>` : ''}
+                            ${signalsHtml}
+                            ${dep.linkedin ? `<br><a href="${dep.linkedin}" target="_blank">View LinkedIn</a>` : ''}
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading departures:', error);
+            }
+        }
+        
+        // Load fetch history
+        async function loadFetchHistory() {
+            try {
+                const response = await fetch(`${API_BASE}/track/history`);
+                const data = await response.json();
+                
+                const list = document.getElementById('historyList');
+                list.innerHTML = '';
+                
+                if (data.history.length === 0) {
+                    list.innerHTML = '<p style="color: #718096;">No fetch history yet</p>';
+                    return;
+                }
+                
+                data.history.forEach(fetch => {
+                    const item = document.createElement('div');
+                    item.className = 'history-item';
+                    item.innerHTML = `
+                        <div class="history-header">
+                            <div class="history-company">${fetch.company}</div>
+                            <div class="history-date">${new Date(fetch.fetch_date).toLocaleString()}</div>
+                        </div>
+                        <div class="history-details">
+                            Fetched: ${fetch.employees_fetched} employees | 
+                            Credits used: ${fetch.credits_used} | 
+                            Status: ${fetch.success ? '✅ Success' : '❌ Failed'}
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading fetch history:', error);
+            }
+        }
+        
+        // Check system status
+        async function checkSystemStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api`);
+                const data = await response.json();
+                
+                document.getElementById('apiStatus').textContent = '✅';
+                document.getElementById('dbStatus').textContent = '✅';
+                
+                showMessage('System is healthy', 'success');
+            } catch (error) {
+                document.getElementById('apiStatus').textContent = '❌';
+                showMessage('API connection failed', 'error');
+            }
+        }
+        
+        // Test check (no credits used)
+        async function runTestCheck() {
+            try {
+                const response = await fetch(`${API_BASE}/check/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(`Test complete: ${data.message}`, 'success');
+                    
+                    // Show test results
+                    const statusDiv = document.getElementById('checkStatus');
+                    statusDiv.innerHTML = `
+                        <div class="message info">
+                            <strong>Test Results:</strong><br>
+                            Would check ${data.would_check} employees<br>
+                            Credits that would be used: ${data.credits_would_use}<br>
+                            Simulated departure: ${data.simulated_departure ? data.simulated_departure.name + ' left ' + data.simulated_departure.old_company : 'None'}
+                        </div>
+                    `;
+                } else {
+                    showMessage('Test check failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Show message
+        function showMessage(text, type) {
+            const msg = document.createElement('div');
+            msg.className = `message ${type}`;
+            msg.textContent = text;
+            msg.style.position = 'fixed';
+            msg.style.top = '20px';
+            msg.style.right = '20px';
+            msg.style.zIndex = '1000';
+            document.body.appendChild(msg);
+            
+            setTimeout(() => {
+                msg.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

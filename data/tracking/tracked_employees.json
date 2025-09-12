@@ -1,0 +1,54 @@
+{
+  "initialized": "2025-09-11T19:29:33.356093",
+  "companies": {
+    "openai": {
+      "count": 2,
+      "employee_ids": [
+        "nvdOu4U8XycyRVy8PutGBg_0000",
+        "7Qz9df6dlsUS9kkoTdSLpg_0000"
+      ]
+    },
+    "google deepmind": {
+      "count": 1,
+      "employee_ids": [
+        "PdrLnAnYvXpQEmaYJGLgPQ_0000"
+      ]
+    }
+  },
+  "total_tracked": 3,
+  "by_pdl_id": {
+    "nvdOu4U8XycyRVy8PutGBg_0000": {
+      "name": "jake brill",
+      "company": "openai",
+      "title": "head of product - integrity",
+      "linkedin": "linkedin.com/in/jake-brill",
+      "tracking_started": "2025-09-11T19:29:34.976092",
+      "last_checked": "2025-09-11T19:29:34.976092",
+      "status": "active",
+      "current_company": "openai",
+      "job_last_changed": "2024-12-29"
+    },
+    "7Qz9df6dlsUS9kkoTdSLpg_0000": {
+      "name": "gary hammell",
+      "company": "openai",
+      "title": "senior gtm systems engineer",
+      "linkedin": "linkedin.com/in/garyhammell",
+      "tracking_started": "2025-09-11T19:29:34.976092",
+      "last_checked": "2025-09-11T19:29:34.976092",
+      "status": "active",
+      "current_company": "openai",
+      "job_last_changed": "2025-04-01"
+    },
+    "PdrLnAnYvXpQEmaYJGLgPQ_0000": {
+      "name": "sandy huang",
+      "company": "google deepmind",
+      "title": "senior research scientist",
+      "linkedin": "linkedin.com/in/sandy-huang-490a7919",
+      "tracking_started": "2025-09-11T19:29:53.735913",
+      "last_checked": "2025-09-11T19:29:53.735913",
+      "status": "active",
+      "current_company": "google deepmind",
+      "job_last_changed": "2021-08-28"
+    }
+  }
+}
