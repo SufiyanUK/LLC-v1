@@ -13,7 +13,10 @@ from typing import List, Dict, Optional
 from pathlib import Path
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.target_companies import TARGET_COMPANIES, SENIOR_ROLES, SENIOR_LEVELS, AI_ML_KEYWORDS
+from config.target_companies import (
+    TARGET_COMPANIES, SENIOR_ROLES, SENIOR_LEVELS, AI_ML_KEYWORDS,
+    TECHNICAL_ROLE_KEYWORDS, NON_TECHNICAL_KEYWORDS
+)
 from scripts.database_factory import TrackingDatabase
 from scripts.departure_classifier import DepartureClassifier
 from dotenv import load_dotenv
@@ -45,6 +48,29 @@ class EmployeeTracker:
         employees = self.db.get_all_employees()
         return {emp['pdl_id'] for emp in employees if emp['company'].lower() == company.lower()}
     
+    def is_technical_role(self, job_title: str) -> bool:
+        """Check if a job title is technical/product focused"""
+        if not job_title:
+            return False
+            
+        title_lower = job_title.lower()
+        
+        # First check if it's explicitly non-technical
+        for keyword in NON_TECHNICAL_KEYWORDS:
+            if keyword in title_lower:
+                # Special cases: Some titles might contain excluded words but are still technical
+                if 'product designer' in title_lower or 'ux engineer' in title_lower:
+                    continue
+                return False
+        
+        # Then check if it's technical
+        for keyword in TECHNICAL_ROLE_KEYWORDS:
+            if keyword in title_lower:
+                return True
+        
+        # If no match, default to False (exclude uncertain roles)
+        return False
+    
     def fetch_senior_employees(self, company: str, count: int = 5, exclude_existing: bool = True) -> List[Dict]:
         """
         Fetch top N senior employees from a company to track
@@ -66,67 +92,54 @@ class EmployeeTracker:
                 print(f"  Found {len(existing_ids)} already tracked from {company}")
                 print(f"  Will exclude these IDs from search to save credits")
         
-        # Build SQL query with ID exclusion
-        sql_query = f"""
+        # Progressive query strategy - try technical filters first, fallback if needed
+        approach_used = None
+        
+        # Approach 1: Use job_title_role filter but exclude partnerships/marketing
+        sql_query_approach1 = f"""
         SELECT * FROM person
         WHERE job_company_name = '{company.lower()}'
-        AND job_title_levels IN ('vp', 'director', 'principal', 'staff', 'senior', 'lead')"""
+        AND job_title_levels IN ('vp', 'director', 'principal', 'staff', 'senior', 'lead')
+        AND job_title_role IN ('engineering', 'research', 'data')"""
         
         # Add exclusion for existing PDL IDs
         if existing_ids:
-            # PDL supports NOT IN for IDs
             id_list = "', '".join(existing_ids)
-            sql_query += f"\n        AND id NOT IN ('{id_list}')"
+            sql_query_approach1 += f"\n        AND id NOT IN ('{id_list}')"
         
         params = {
-            'sql': sql_query.strip(),
-            'size': count  # This is better than SQL LIMIT
+            'sql': sql_query_approach1.strip(),
+            'size': count
         }
         
         try:
-            # Add timeout and retry logic
+            # Try Approach 1 first
             response = requests.post(
                 self.base_url, 
                 headers=self.headers, 
                 json=params,
-                timeout=30  # 30 second timeout
+                timeout=30
             )
             
             if response.status_code == 200:
-                data = response.json()
-                employees = data.get('data', [])
+                approach_used = 1
+            elif response.status_code in [400, 504]:
+                # Approach 1 failed, try Approach 2
+                print(f"  Approach 1 failed with {response.status_code}, trying simpler query...")
                 
-                print(f"  Fetched: {len(employees)} employees")
-                print(f"  Credits used: {len(employees)}")
-                
-                # Add tracking metadata (no need to filter - query already excluded existing)
-                for emp in employees:
-                    emp['_tracking_started'] = datetime.now().isoformat()
-                    emp['_company'] = company
-                    emp['_last_checked'] = datetime.now().isoformat()
-                    emp['_status'] = 'active'
-                
-                # Show who we're tracking
-                for i, emp in enumerate(employees[:3], 1):
-                    print(f"  {i}. {emp.get('full_name', 'Unknown')}: {emp.get('job_title', 'Unknown')}")
-                
-                return employees
-            elif response.status_code in [504, 400]:
-                print(f"  ERROR: {response.status_code}. Trying simpler query...")
-                
-                # Try without the job_title_levels filter
-                simple_sql = f"""
+                sql_query_approach2 = f"""
                 SELECT * FROM person
-                WHERE job_company_name = '{company.lower()}'"""
+                WHERE job_company_name = '{company.lower()}'
+                AND job_title_levels IN ('vp', 'director', 'principal', 'staff', 'senior', 'lead')
+                AND job_title LIKE '%engineer%'"""
                 
-                # Still exclude existing IDs
                 if existing_ids:
                     id_list = "', '".join(existing_ids)
-                    simple_sql += f"\n                AND id NOT IN ('{id_list}')"""
+                    sql_query_approach2 += f"\n                AND id NOT IN ('{id_list}')"
                 
                 params = {
-                    'sql': simple_sql.strip(),
-                    'size': count  # NO LIMIT in SQL, just size param
+                    'sql': sql_query_approach2.strip(),
+                    'size': count
                 }
                 
                 response = requests.post(
@@ -137,28 +150,78 @@ class EmployeeTracker:
                 )
                 
                 if response.status_code == 200:
-                    data = response.json()
-                    employees = data.get('data', [])
+                    approach_used = 2
+                elif response.status_code in [400, 504]:
+                    # Approach 2 failed, try Approach 3 (simple query)
+                    print(f"  Approach 2 failed with {response.status_code}, using simple query...")
                     
-                    # Filter for senior roles locally
-                    senior_employees = []
-                    senior_levels = ['vp', 'director', 'head', 'principal', 'staff', 'senior', 'lead', 'manager']
+                    sql_query_approach3 = f"""
+                    SELECT * FROM person
+                    WHERE job_company_name = '{company.lower()}'
+                    AND job_title_levels IN ('vp', 'director', 'principal', 'staff', 'senior', 'lead')"""
                     
-                    for emp in employees:
-                        job_title = (emp.get('job_title', '') or '').lower()
-                        if any(level in job_title for level in senior_levels):
-                            emp['_tracking_started'] = datetime.now().isoformat()
-                            emp['_company'] = company
-                            emp['_last_checked'] = datetime.now().isoformat()
-                            emp['_status'] = 'active'
-                            senior_employees.append(emp)
+                    if existing_ids:
+                        id_list = "', '".join(existing_ids)
+                        sql_query_approach3 += f"\n                    AND id NOT IN ('{id_list}')"
                     
-                    print(f"  Fetched: {len(senior_employees)} senior employees")
-                    print(f"  Credits used: {len(employees)}")
-                    return senior_employees[:count]  # Return only requested count
-                else:
-                    print(f"  ERROR: {response.status_code} - {response.text[:200]}")
-                    return []
+                    params = {
+                        'sql': sql_query_approach3.strip(),
+                        'size': count
+                    }
+                    
+                    response = requests.post(
+                        self.base_url,
+                        headers=self.headers,
+                        json=params,
+                        timeout=30
+                    )
+                    
+                    if response.status_code == 200:
+                        approach_used = 3
+            
+            if response.status_code == 200:
+                data = response.json()
+                employees = data.get('data', [])
+                
+                # Log which approach succeeded
+                approach_desc = {
+                    1: "job_title_role filter (engineering/research/data)",
+                    2: "job_title LIKE filter (engineer only)",
+                    3: "basic senior filter (no role filtering)"
+                }
+                print(f"  Query approach {approach_used}: {approach_desc.get(approach_used, 'unknown')}")
+                print(f"  Fetched: {len(employees)} employees")
+                
+                # Filter for technical roles
+                technical_employees = []
+                non_technical_skipped = []
+                
+                for emp in employees:
+                    job_title = emp.get('job_title', '')
+                    if self.is_technical_role(job_title):
+                        # Add tracking metadata
+                        emp['_tracking_started'] = datetime.now().isoformat()
+                        emp['_company'] = company
+                        emp['_last_checked'] = datetime.now().isoformat()
+                        emp['_status'] = 'active'
+                        technical_employees.append(emp)
+                    else:
+                        non_technical_skipped.append(f"{emp.get('full_name', 'Unknown')}: {job_title}")
+                
+                print(f"  Technical roles found: {len(technical_employees)}")
+                if non_technical_skipped:
+                    print(f"  Skipped {len(non_technical_skipped)} non-technical roles")
+                    if len(non_technical_skipped) <= 3:
+                        for skip in non_technical_skipped:
+                            print(f"    - {skip}")
+                
+                print(f"  Credits used: {len(employees)}")
+                
+                # Show who we're tracking
+                for i, emp in enumerate(technical_employees[:3], 1):
+                    print(f"  {i}. {emp.get('full_name', 'Unknown')}: {emp.get('job_title', 'Unknown')}")
+                
+                return technical_employees
             else:
                 print(f"  ERROR: {response.status_code}")
                 try:

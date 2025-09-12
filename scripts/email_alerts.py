@@ -18,6 +18,7 @@ class EmailAlertSender:
         self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
         self.sender_email = os.getenv('SENDER_EMAIL')
         self.sender_password = os.getenv('SENDER_PASSWORD')
+        self.alert_email = os.getenv('ALERT_EMAIL', 'bailie@venrock.com')
     
     async def send_alert(
         self,

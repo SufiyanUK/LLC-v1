@@ -1,6 +1,7 @@
 """
 PostgreSQL database for persistent employee tracking on Railway
 Exact same interface as SQLite version for compatibility
+THIS FILE IS ONLY USED ON RAILWAY - NOT LOCALLY
 """
 
 import psycopg2
@@ -212,13 +213,16 @@ class TrackingDatabase:
         employees = []
         for row in cursor.fetchall():
             emp = dict(row)
-            # Parse full_data JSON if present
+            # Parse full_data JSON if present (PostgreSQL JSONB auto-converts)
             if emp.get('full_data'):
-                emp['full_data'] = emp['full_data']  # PostgreSQL JSONB auto-converts
+                # PostgreSQL JSONB is already a dict, no need to parse
+                pass
+            else:
+                emp['full_data'] = {}
             # Fix LinkedIn URL if needed
             if emp.get('linkedin_url'):
                 url = emp['linkedin_url']
-                if not url.startswith('http'):
+                if url and not url.startswith('http'):
                     if url.startswith('linkedin.com'):
                         emp['linkedin_url'] = f'https://www.{url}'
                     elif url.startswith('www.linkedin.com'):
@@ -247,8 +251,9 @@ class TrackingDatabase:
         
         if row:
             result = dict(row)
-            if result.get('full_data'):
-                result['full_data'] = result['full_data']  # PostgreSQL JSONB auto-converts
+            # PostgreSQL JSONB already returns as dict
+            if not result.get('full_data'):
+                result['full_data'] = {}
             return result
         return None
     
@@ -326,7 +331,7 @@ class TrackingDatabase:
             # Fix LinkedIn URL if needed
             if emp.get('linkedin_url'):
                 url = emp['linkedin_url']
-                if not url.startswith('http'):
+                if url and not url.startswith('http'):
                     if url.startswith('linkedin.com'):
                         emp['linkedin_url'] = f'https://www.{url}'
                     elif url.startswith('www.linkedin.com'):
