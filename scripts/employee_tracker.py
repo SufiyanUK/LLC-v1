@@ -506,3 +506,12 @@ class EmployeeTracker:
         """Save departures to database"""
         for dep in departures:
             self.db.add_departure(dep)
+    
+    def get_scheduler_state(self) -> Dict:
+        """Get the current scheduler state"""
+        return self.db.get_scheduler_state()
+    
+    def update_scheduler_state(self, last_check: datetime = None, next_check: datetime = None,
+                              enabled: bool = None, increment_count: bool = False):
+        """Update the scheduler state"""
+        return self.db.update_scheduler_state(last_check, next_check, enabled, increment_count)

@@ -78,6 +78,26 @@ class TrackingDatabase:
             )
         """)
         
+        # Scheduler state table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS scheduler_state (
+                id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                last_check_date TIMESTAMP,
+                next_check_date TIMESTAMP,
+                scheduler_enabled BOOLEAN DEFAULT false,
+                check_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Initialize scheduler state if not exists
+        cursor.execute("""
+            INSERT INTO scheduler_state (id, scheduler_enabled)
+            VALUES (1, false)
+            ON CONFLICT (id) DO NOTHING
+        """)
+        
         # Departure history table (enhanced with alert levels)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS departures (
@@ -522,6 +542,69 @@ class TrackingDatabase:
             """, (new_url, pdl_id))
         
         conn.commit()
+        conn.close()
+        
+        return len(updates)
+    
+    def get_scheduler_state(self) -> Dict:
+        """Get the current scheduler state"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT last_check_date, next_check_date, scheduler_enabled, check_count
+            FROM scheduler_state
+            WHERE id = 1
+        """)
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {
+                'last_check_date': row[0].isoformat() if row[0] else None,
+                'next_check_date': row[1].isoformat() if row[1] else None,
+                'scheduler_enabled': bool(row[2]),
+                'check_count': row[3]
+            }
+        return {
+            'last_check_date': None,
+            'next_check_date': None,
+            'scheduler_enabled': False,
+            'check_count': 0
+        }
+    
+    def update_scheduler_state(self, last_check: datetime = None, next_check: datetime = None, 
+                              enabled: bool = None, increment_count: bool = False):
+        """Update the scheduler state"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        updates = []
+        params = []
+        
+        if last_check is not None:
+            updates.append("last_check_date = %s")
+            params.append(last_check)
+        
+        if next_check is not None:
+            updates.append("next_check_date = %s")
+            params.append(next_check)
+        
+        if enabled is not None:
+            updates.append("scheduler_enabled = %s")
+            params.append(enabled)
+        
+        if increment_count:
+            updates.append("check_count = check_count + 1")
+        
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        
+        if updates:
+            query = f"UPDATE scheduler_state SET {', '.join(updates)} WHERE id = 1"
+            cursor.execute(query, params)
+            conn.commit()
+        
         conn.close()
         
         return len(updates)

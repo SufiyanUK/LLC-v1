@@ -452,6 +452,12 @@
                 <button class="btn" onclick="runDepartureCheck()">Run Departure Check</button>
                 <button class="btn btn-secondary" onclick="runTestCheck()" style="margin-left: 10px;">Test Check (No Credits)</button>
                 <div id="checkStatus" style="margin-top: 15px;"></div>
+                
+                <!-- Scheduler Status -->
+                <div id="schedulerStatus" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0;">📅 Auto-Scheduler Status</h4>
+                    <div id="schedulerInfo">Loading scheduler status...</div>
+                </div>
             </div>
         </div>
         
@@ -520,6 +526,7 @@
             loadCompanies();
             loadStatus();
             loadEmployees();
+            loadSchedulerStatus();
         };
         
         // Tab switching
@@ -902,6 +909,55 @@
                 }
             } catch (error) {
                 showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Load scheduler status
+        async function loadSchedulerStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/scheduler/status`);
+                const data = await response.json();
+                
+                const schedulerInfo = document.getElementById('schedulerInfo');
+                let statusHTML = '';
+                
+                if (!data.scheduler_enabled) {
+                    statusHTML = `
+                        <div style="color: #666;">
+                            <strong>Status:</strong> <span style="color: #dc3545;">Disabled</span><br>
+                            <small>Run your first departure check to enable automatic monthly checks</small>
+                        </div>
+                    `;
+                } else {
+                    const lastCheck = data.last_check ? new Date(data.last_check).toLocaleString() : 'Never';
+                    const nextCheck = data.next_check ? new Date(data.next_check).toLocaleString() : 'Not scheduled';
+                    
+                    let statusColor = '#28a745'; // Green
+                    let statusText = 'Scheduled';
+                    let statusIcon = '✅';
+                    
+                    if (data.is_overdue) {
+                        statusColor = '#dc3545'; // Red
+                        statusText = 'OVERDUE';
+                        statusIcon = '⚠️';
+                    }
+                    
+                    statusHTML = `
+                        <div>
+                            <strong>Status:</strong> <span style="color: ${statusColor};">${statusIcon} ${statusText}</span><br>
+                            <strong>Last Check:</strong> ${lastCheck}<br>
+                            <strong>Next Check:</strong> ${nextCheck}<br>
+                            <strong>Total Checks Run:</strong> ${data.check_count}<br>
+                            ${data.days_until_next !== null ? `<strong>Days Until Next:</strong> ${data.days_until_next}` : ''}
+                            ${data.is_overdue ? '<br><strong style="color: #dc3545;">⚠️ Manual check needed!</strong>' : ''}
+                        </div>
+                    `;
+                }
+                
+                schedulerInfo.innerHTML = statusHTML;
+            } catch (error) {
+                console.error('Error loading scheduler status:', error);
+                document.getElementById('schedulerInfo').innerHTML = '<span style="color: #dc3545;">Failed to load scheduler status</span>';
             }
         }
         

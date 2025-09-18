@@ -10,11 +10,12 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
 import uvicorn
+from datetime import timedelta
 
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -296,8 +297,20 @@ async def get_fetch_history():
     }
 
 @app.post("/check/monthly")
-async def run_departure_check(config: MonthlyCheckConfig, background_tasks: BackgroundTasks):
+async def run_departure_check(
+    config: MonthlyCheckConfig, 
+    background_tasks: BackgroundTasks,
+    x_cron_token: str = Header(None)
+):
     """Run departure check for all tracked employees (uses 1 credit per employee)"""
+    
+    # Security check for cron job
+    expected_token = os.getenv("CRON_SECRET_TOKEN")
+    if expected_token and x_cron_token:
+        # If a token is provided in the header, validate it
+        if x_cron_token != expected_token:
+            raise HTTPException(403, "Invalid cron token")
+    # Allow manual triggers from UI without token
     
     if tracker_state['is_checking']:
         raise HTTPException(status_code=400, detail="Check already in progress")
@@ -313,7 +326,8 @@ async def run_departure_check(config: MonthlyCheckConfig, background_tasks: Back
         "success": True,
         "message": "Departure check started",
         "send_alerts": config.send_alerts,
-        "alert_email": config.alert_email
+        "alert_email": config.alert_email,
+        "triggered_by": "cron" if x_cron_token else "manual"
     }
 
 @app.post("/check/test")
@@ -479,6 +493,67 @@ async def track_custom_company(config: CustomCompanyTracking):
             "employees_added": 0
         }
 
+@app.get("/scheduler/status")
+async def get_scheduler_status():
+    """Get current scheduler state and next run time"""
+    
+    tracker = EmployeeTracker()
+    state = tracker.get_scheduler_state()
+    
+    # Check if overdue
+    is_overdue = False
+    days_until_next = None
+    
+    if state['next_check_date']:
+        next_check = datetime.fromisoformat(state['next_check_date'])
+        now = datetime.now()
+        
+        if now > next_check:
+            is_overdue = True
+            days_overdue = (now - next_check).days
+        else:
+            days_until_next = (next_check - now).days
+    
+    return {
+        "last_check": state['last_check_date'],
+        "next_check": state['next_check_date'],
+        "scheduler_enabled": state['scheduler_enabled'],
+        "check_count": state['check_count'],
+        "is_overdue": is_overdue,
+        "days_until_next": days_until_next,
+        "status": "overdue" if is_overdue else "scheduled" if state['scheduler_enabled'] else "disabled"
+    }
+
+@app.post("/scheduler/enable")
+async def enable_scheduler(days_interval: int = 30):
+    """Enable automatic scheduling with specified interval"""
+    
+    tracker = EmployeeTracker()
+    next_check = datetime.now() + timedelta(days=days_interval)
+    
+    tracker.update_scheduler_state(
+        next_check=next_check,
+        enabled=True
+    )
+    
+    return {
+        "success": True,
+        "message": f"Scheduler enabled with {days_interval} day interval",
+        "next_check": next_check.isoformat()
+    }
+
+@app.post("/scheduler/disable")
+async def disable_scheduler():
+    """Disable automatic scheduling"""
+    
+    tracker = EmployeeTracker()
+    tracker.update_scheduler_state(enabled=False)
+    
+    return {
+        "success": True,
+        "message": "Scheduler disabled"
+    }
+
 @app.get("/company-suggestions")
 async def get_company_suggestions():
     """Get suggested employee counts for each company"""
@@ -540,6 +615,16 @@ async def monthly_check_background(send_alerts: bool, alert_email: Optional[str]
                     )
         else:
             tracker_state['check_message'] = 'No departures detected'
+        
+        # Update scheduler state - schedule next check in 30 days
+        next_check = datetime.now() + timedelta(days=30)
+        tracker.update_scheduler_state(
+            last_check=datetime.now(),
+            next_check=next_check,
+            enabled=True,
+            increment_count=True
+        )
+        print(f"[SCHEDULER] Next check scheduled for: {next_check.strftime('%Y-%m-%d %H:%M')}")
             
     except Exception as e:
         tracker_state['check_message'] = f'Error: {str(e)}'

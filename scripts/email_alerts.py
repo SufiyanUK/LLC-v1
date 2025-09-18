@@ -1,5 +1,6 @@
 """
 Email alert system for employee departures
+Supports both Resend API and SMTP fallback
 """
 
 import os
@@ -9,16 +10,54 @@ from email.mime.multipart import MIMEMultipart
 from typing import List, Dict
 from datetime import datetime
 
+try:
+    import resend
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
+
+try:
+    import sib_api_v3_sdk
+    from sib_api_v3_sdk.rest import ApiException
+    BREVO_AVAILABLE = True
+except ImportError:
+    BREVO_AVAILABLE = False
+
 class EmailAlertSender:
-    """Send email alerts for employee departures"""
+    """Send email alerts for employee departures using Brevo, Resend or SMTP"""
     
     def __init__(self):
-        # Email configuration from environment
+        # Brevo configuration (preferred)
+        self.brevo_api_key = os.getenv('BREVO_API_KEY')
+        self.brevo_sender_email = os.getenv('BREVO_SENDER_EMAIL', 'alerts@venrock.com')
+        self.brevo_sender_name = os.getenv('BREVO_SENDER_NAME', 'Venrock Alerts')
+        
+        # Resend configuration (secondary)
+        self.resend_api_key = os.getenv('RESEND_API_KEY')
+        self.resend_from = os.getenv('RESEND_FROM_EMAIL', 'alerts@venrock.com')
+        
+        # SMTP configuration (fallback)
         self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
         self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
         self.sender_email = os.getenv('SENDER_EMAIL')
         self.sender_password = os.getenv('SENDER_PASSWORD')
-        self.alert_email = os.getenv('ALERT_EMAIL', 'bailie@venrock.com')
+        
+        # Common configuration
+        self.alert_email = os.getenv('ALERT_EMAIL', 'venrocksourcing@gmail.com')
+        
+        # Initialize Brevo if available
+        self.use_brevo = False
+        if BREVO_AVAILABLE and self.brevo_api_key:
+            configuration = sib_api_v3_sdk.Configuration()
+            configuration.api_key['api-key'] = self.brevo_api_key
+            self.brevo_api = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
+            self.use_brevo = True
+        
+        # Initialize Resend if available
+        self.use_resend = False
+        if RESEND_AVAILABLE and self.resend_api_key and not self.use_brevo:
+            resend.api_key = self.resend_api_key
+            self.use_resend = True
     
     async def send_alert(
         self,
@@ -29,14 +68,141 @@ class EmailAlertSender:
     ) -> bool:
         """
         Send departure alert email with priority levels
+        Uses Brevo first, then Resend, falls back to SMTP
         
         Returns:
             True if sent successfully, False otherwise
         """
         
+        # Try Brevo first if available
+        if self.use_brevo:
+            return await self._send_via_brevo(recipient_email, company, departures, is_test)
+        
+        # Try Resend if available
+        if self.use_resend:
+            return await self._send_via_resend(recipient_email, company, departures, is_test)
+        
+        # Fallback to SMTP
         if not self.sender_email or not self.sender_password:
-            print("[EMAIL] Sender credentials not configured")
+            print("[EMAIL] No email service configured")
             return False
+        
+        return await self._send_via_smtp(recipient_email, company, departures, is_test)
+    
+    async def _send_via_brevo(
+        self,
+        recipient_email: str,
+        company: str,
+        departures: List[Dict],
+        is_test: bool = False
+    ) -> bool:
+        """Send email using Brevo API"""
+        
+        try:
+            # Determine priority based on alert levels
+            max_level = max((d.get('alert_level', 1) for d in departures), default=1)
+            priority_prefix = {
+                3: "HIGH PRIORITY - Startup Departure",
+                2: "IMPORTANT - Building Signals",
+                1: "Departure Alert"
+            }
+            
+            # Create HTML email body
+            html_body = self._create_html_email(company, departures, is_test)
+            
+            # Create send email object
+            send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+                sender={
+                    "email": self.brevo_sender_email,
+                    "name": self.brevo_sender_name
+                },
+                to=[{"email": recipient_email}],
+                subject=f"{'[TEST] ' if is_test else ''}{priority_prefix.get(max_level, 'Departure Alert')}: {len(departures)} from {company}",
+                html_content=html_body
+            )
+            
+            # Add priority headers for Level 3
+            if max_level == 3:
+                send_smtp_email.headers = {
+                    "X-Priority": "1",
+                    "Importance": "high"
+                }
+            
+            # Send the email
+            api_response = self.brevo_api.send_transac_email(send_smtp_email)
+            
+            if api_response:
+                print(f"[EMAIL-BREVO] Alert sent to {recipient_email} (ID: {api_response.message_id})")
+                return True
+            else:
+                print(f"[EMAIL-BREVO] Failed - no response")
+                return False
+                
+        except ApiException as e:
+            print(f"[EMAIL-BREVO] Failed to send: {e}")
+            return False
+        except Exception as e:
+            print(f"[EMAIL-BREVO] Failed to send: {str(e)}")
+            return False
+    
+    async def _send_via_resend(
+        self,
+        recipient_email: str,
+        company: str,
+        departures: List[Dict],
+        is_test: bool = False
+    ) -> bool:
+        """Send email using Resend API"""
+        
+        try:
+            # Determine priority based on alert levels
+            max_level = max((d.get('alert_level', 1) for d in departures), default=1)
+            priority_prefix = {
+                3: "🚨 HIGH PRIORITY - Startup Departure",
+                2: "⚠️ IMPORTANT - Building Signals",
+                1: "📢 Departure Alert"
+            }
+            
+            # Create HTML email body
+            html_body = self._create_html_email(company, departures, is_test)
+            
+            # Send using Resend API
+            params = {
+                "from": self.resend_from,
+                "to": [recipient_email],
+                "subject": f"{'[TEST] ' if is_test else ''}{priority_prefix.get(max_level, 'Departure Alert')}: {len(departures)} from {company}",
+                "html": html_body
+            }
+            
+            # Add priority headers for Level 3
+            if max_level == 3:
+                params["headers"] = {
+                    "X-Priority": "1",
+                    "Importance": "high"
+                }
+            
+            # Send the email
+            email = resend.Emails.send(params)
+            
+            if email and email.get('id'):
+                print(f"[EMAIL-RESEND] Alert sent to {recipient_email} (ID: {email.get('id')})")
+                return True
+            else:
+                print(f"[EMAIL-RESEND] Failed - no ID returned")
+                return False
+                
+        except Exception as e:
+            print(f"[EMAIL-RESEND] Failed to send: {str(e)}")
+            return False
+    
+    async def _send_via_smtp(
+        self,
+        recipient_email: str,
+        company: str,
+        departures: List[Dict],
+        is_test: bool = False
+    ) -> bool:
+        """Send email using SMTP (fallback method)"""
         
         try:
             # Determine priority based on alert levels
@@ -71,11 +237,11 @@ class EmailAlertSender:
                 server.login(self.sender_email, self.sender_password)
                 server.send_message(msg)
             
-            print(f"[EMAIL] Alert sent to {recipient_email}")
+            print(f"[EMAIL-SMTP] Alert sent to {recipient_email}")
             return True
             
         except Exception as e:
-            print(f"[EMAIL] Failed to send: {str(e)}")
+            print(f"[EMAIL-SMTP] Failed to send: {str(e)}")
             return False
     
     def _create_html_email(self, company: str, departures: List[Dict], is_test: bool) -> str:
@@ -161,6 +327,11 @@ class EmailAlertSender:
             if dep.get('alert_signals') and len(dep.get('alert_signals', [])) > 0:
                 signals_html = f'<br><strong>Signals:</strong> {", ".join(dep["alert_signals"][:2])}'
             
+            # Add LinkedIn URL if available
+            linkedin_html = ''
+            if dep.get('linkedin_url'):
+                linkedin_html = f'<br><strong>LinkedIn:</strong> <a href="{dep.get("linkedin_url")}" style="color: #0077b5; text-decoration: none;">View Profile →</a>'
+            
             html += f"""
             <div class="departure-item" style="border-left-color: {'#ff4444' if alert_level == 3 else '#ff9500' if alert_level == 2 else '#5e72e4'};">
                 <div class="name">{dep.get('name', 'Unknown')} {' '.join(badges)}</div>
@@ -169,6 +340,7 @@ class EmailAlertSender:
                     <strong>To:</strong> {dep.get('new_title', 'Unknown')} at {dep.get('new_company', 'Unknown')}<br>
                     {f'<strong>Headline:</strong> <em>{dep.get("headline", "")}</em><br>' if dep.get('headline') else ''}
                     {signals_html}
+                    {linkedin_html}
                 </div>
             </div>
 """
