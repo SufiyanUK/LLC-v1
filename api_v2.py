@@ -616,10 +616,19 @@ async def monthly_check_background(send_alerts: bool, alert_email: Optional[str]
         else:
             tracker_state['check_message'] = 'No departures detected'
         
-        # Update scheduler state - schedule next check in 30 days
-        next_check = datetime.now() + timedelta(days=30)
+        # Update scheduler state - schedule next check for 1st of next month
+        from datetime import datetime
+        import calendar
+
+        now = datetime.now()
+        # Calculate first day of next month
+        if now.month == 12:
+            next_check = datetime(now.year + 1, 1, 1, 9, 0, 0)  # Jan 1st next year at 9 AM
+        else:
+            next_check = datetime(now.year, now.month + 1, 1, 9, 0, 0)  # 1st of next month at 9 AM
+
         tracker.update_scheduler_state(
-            last_check=datetime.now(),
+            last_check=now,
             next_check=next_check,
             enabled=True,
             increment_count=True
