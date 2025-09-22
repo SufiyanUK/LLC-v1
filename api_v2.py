@@ -216,13 +216,13 @@ async def add_company_tracking(config: CompanyTracking):
     if existing > 0:
         print(f"  ⚠️ Already tracking {existing} employees from {config.company}")
     
-    success = tracker.add_company_to_tracking(config.company, config.employee_count)
-    
-    if success:
+    result = tracker.add_company_to_tracking(config.company, config.employee_count)
+
+    if result and result.get('success'):
         status = tracker.get_tracking_status()
         return {
             "success": True,
-            "message": f"Added {config.employee_count} employees from {config.company} to tracking",
+            "message": f"Added {result.get('added', 0)} employees from {config.company} to tracking",
             "total_tracked": status['total_tracked'],
             "credits_used": config.employee_count
         }
