@@ -8,3 +8,4 @@ pathlib==1.0.1
 aiofiles==23.2.1
 psycopg2-binary==2.9.9
 resend==2.13.1
+# DATABASE_URL

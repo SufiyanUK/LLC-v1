@@ -52,22 +52,30 @@ class EmployeeTracker:
         """Check if a job title is technical/product focused"""
         if not job_title:
             return False
-            
+
         title_lower = job_title.lower()
-        
+
+        # Special cases: Some titles might contain excluded words but are still technical
+        # If it has "engineer" in the title, it's likely technical even with GTM/sales words
+        if 'engineer' in title_lower or 'engineering' in title_lower:
+            # Only exclude if it's purely sales/marketing engineer
+            if 'sales engineer' in title_lower or 'solutions engineer' in title_lower:
+                return False
+            return True
+
         # First check if it's explicitly non-technical
         for keyword in NON_TECHNICAL_KEYWORDS:
             if keyword in title_lower:
-                # Special cases: Some titles might contain excluded words but are still technical
+                # Additional special cases
                 if 'product designer' in title_lower or 'ux engineer' in title_lower:
                     continue
                 return False
-        
+
         # Then check if it's technical
         for keyword in TECHNICAL_ROLE_KEYWORDS:
             if keyword in title_lower:
                 return True
-        
+
         # If no match, default to False (exclude uncertain roles)
         return False
     
