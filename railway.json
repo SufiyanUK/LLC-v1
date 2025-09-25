@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "uvicorn api_v2:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "python init_railway_db.py && uvicorn api_v2:app --host 0.0.0.0 --port $PORT",
     "restartPolicyType": "NEVER",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30
