@@ -1,0 +1,15 @@
+# FastAPI and dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+
+# CORS support
+fastapi-cors==0.0.6
+
+# Async support
+aiofiles==23.2.1
+
+# Optional: For better performance
+httpx==0.25.2
+orjson==3.9.10

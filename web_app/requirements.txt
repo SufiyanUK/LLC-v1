@@ -1,0 +1,17 @@
+# Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+werkzeug==3.0.1
+
+# Environment Variables
+python-dotenv==0.21.1
+
+# Web Server
+gunicorn==21.2.0
+
+# JSON handling
+jsonlines==4.0.0
+
+# Threading and async
+threading
+pathlib

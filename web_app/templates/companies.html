@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block title %}Companies - Alert Pipeline{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Qualified Startups</h1>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="btn-group" role="group">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
+                <i class="fas fa-plus"></i> Add Company
+            </button>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="fas fa-file-import"></i> Import CSV
+            </button>
+            <button class="btn btn-info" id="exportCompaniesBtn">
+                <i class="fas fa-download"></i> Export CSV
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Companies List ({{ companies|length }} total)</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="companiesTable" class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Company Name</th>
+                                <th>Founded Date</th>
+                                <th>Industry</th>
+                                <th>Location</th>
+                                <th>Description</th>
+                                <th>Added Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for company in companies %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><strong>{{ company.company_name }}</strong></td>
+                                <td>{{ company.founded_date if company.founded_date else '-' }}</td>
+                                <td>{{ company.industry if company.industry else 'Technology' }}</td>
+                                <td>{{ company.location if company.location else '-' }}</td>
+                                <td>
+                                    {% if company.description %}
+                                        <small>{{ company.description[:100] }}{% if company.description|length > 100 %}...{% endif %}</small>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if company.added_date %}
+                                        {{ company.added_date.split('T')[0] }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary edit-btn" 
+                                            data-index="{{ loop.index0 }}" 
+                                            data-company='{{ company|tojson }}'>
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger delete-btn" 
+                                            data-index="{{ loop.index0 }}" 
+                                            data-name="{{ company.company_name }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Company Modal -->
+<div class="modal fade" id="addCompanyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Company</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCompanyForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Company Name *</label>
+                                <input type="text" class="form-control" id="companyName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Founded Date</label>
+                                <input type="date" class="form-control" id="foundedDate">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Industry</label>
+                                <select class="form-control" id="industry">
+                                    <option value="Technology">Technology</option>
+                                    <option value="AI/ML">AI/ML</option>
+                                    <option value="SaaS">SaaS</option>
+                                    <option value="Fintech">Fintech</option>
+                                    <option value="Healthcare">Healthcare</option>
+                                    <option value="E-commerce">E-commerce</option>
+                                    <option value="Enterprise">Enterprise</option>
+                                    <option value="Consumer">Consumer</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Location</label>
+                                <input type="text" class="form-control" id="location" placeholder="e.g., San Francisco, CA">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="description" rows="3" placeholder="Brief description of the company"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveCompanyBtn">Save Company</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Companies from CSV</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Upload a CSV file with the following columns:</p>
+                <ul>
+                    <li>company_name (required)</li>
+                    <li>founded_date</li>
+                    <li>industry</li>
+                    <li>location</li>
+                    <li>description</li>
+                </ul>
+                <form id="importForm">
+                    <div class="mb-3">
+                        <label class="form-label">Select CSV File</label>
+                        <input type="file" class="form-control" id="csvFile" accept=".csv" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="importBtn">Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    const table = $('#companiesTable').DataTable({
+        order: [[1, 'asc']], // Sort by company name
+        pageLength: 25
+    });
+    
+    // Add Company
+    $('#saveCompanyBtn').click(function() {
+        const companyData = {
+            company_name: $('#companyName').val(),
+            founded_date: $('#foundedDate').val(),
+            industry: $('#industry').val(),
+            location: $('#location').val(),
+            description: $('#description').val()
+        };
+        
+        if (!companyData.company_name) {
+            alert('Company name is required');
+            return;
+        }
+        
+        $.ajax({
+            url: '/api/companies',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(companyData),
+            success: function(response) {
+                if (response.success) {
+                    location.reload(); // Reload to show new company
+                }
+            },
+            error: function(xhr) {
+                alert('Error adding company: ' + xhr.responseJSON.error);
+            }
+        });
+    });
+    
+    // Delete Company
+    $('.delete-btn').click(function() {
+        const index = $(this).data('index');
+        const name = $(this).data('name');
+        
+        if (confirm(`Are you sure you want to delete ${name}?`)) {
+            $.ajax({
+                url: `/api/companies/${index}`,
+                method: 'DELETE',
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    }
+                },
+                error: function(xhr) {
+                    alert('Error deleting company: ' + xhr.responseJSON.error);
+                }
+            });
+        }
+    });
+    
+    // Import CSV
+    $('#importBtn').click(function() {
+        const fileInput = $('#csvFile')[0];
+        if (!fileInput.files.length) {
+            alert('Please select a file');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        
+        $.ajax({
+            url: '/api/companies/import',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    alert(`Successfully imported ${response.imported} companies`);
+                    location.reload();
+                }
+            },
+            error: function(xhr) {
+                alert('Error importing companies: ' + xhr.responseJSON.error);
+            }
+        });
+    });
+    
+    // Export CSV
+    $('#exportCompaniesBtn').click(function() {
+        let csv = 'company_name,founded_date,industry,location,description\n';
+        
+        {% for company in companies %}
+        csv += `"{{ company.company_name }}",`;
+        csv += `"{{ company.founded_date if company.founded_date else '' }}",`;
+        csv += `"{{ company.industry if company.industry else 'Technology' }}",`;
+        csv += `"{{ company.location if company.location else '' }}",`;
+        csv += `"{{ company.description if company.description else '' }}"\n`;
+        {% endfor %}
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `companies_export_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    });
+});
+</script>
+{% endblock %}

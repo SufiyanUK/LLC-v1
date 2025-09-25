@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Alerts - Alert Pipeline{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">All Alerts</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Alert List</h5>
+                <button class="btn btn-sm btn-success" id="exportCsvBtn">
+                    <i class="fas fa-download"></i> Export CSV
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="alertsTable" class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Level</th>
+                                <th>Name</th>
+                                <th>Previous Company</th>
+                                <th>Current Status</th>
+                                <th>Building Signals</th>
+                                <th>Founder Score</th>
+                                <th>Stealth Score</th>
+                                <th>Priority</th>
+                                <th>Days Since Left</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in alerts %}
+                            <tr>
+                                <td data-order="{{ alert.level }}">
+                                    <span class="badge {% if alert.level == 'LEVEL_3' %}bg-danger{% elif alert.level == 'LEVEL_2' %}bg-warning{% else %}bg-info{% endif %}">
+                                        {{ alert.level.replace('LEVEL_', 'L') }}
+                                    </span>
+                                </td>
+                                <td><strong>{{ alert.full_name }}</strong></td>
+                                <td>{{ alert.departure_info.company if alert.departure_info else '-' }}</td>
+                                <td>
+                                    {% if alert.startup_info %}
+                                        <span class="badge bg-success">{{ alert.startup_info.startup_name }}</span>
+                                    {% elif alert.job_company_name %}
+                                        {{ alert.job_company_name }}
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if alert.building_phrases %}
+                                        {% for phrase in alert.building_phrases[:2] %}
+                                            <small class="badge bg-secondary">{{ phrase }}</small>
+                                        {% endfor %}
+                                        {% if alert.building_phrases|length > 2 %}
+                                            <small>+{{ alert.building_phrases|length - 2 }}</small>
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>{{ "%.1f"|format(alert.founder_score) }}</td>
+                                <td>{{ alert.stealth_score }}</td>
+                                <td data-order="{{ alert.priority_score }}">
+                                    <strong>{{ "%.1f"|format(alert.priority_score) }}</strong>
+                                </td>
+                                <td>{{ alert.departure_info.days_ago if alert.departure_info else '-' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary view-details-btn" 
+                                            data-alert='{{ alert|tojson }}'>
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Details Modal -->
+<div class="modal fade" id="alertDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Alert Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="alertDetailsContent">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    const table = $('#alertsTable').DataTable({
+        order: [[7, 'desc']], // Sort by priority score descending
+        pageLength: 25,
+        columnDefs: [
+            { targets: [4, 9], orderable: false } // Disable sorting for complex columns
+        ]
+    });
+    
+    // View alert details
+    $('.view-details-btn').click(function() {
+        const alert = $(this).data('alert');
+        let levelClass = alert.level === 'LEVEL_3' ? 'danger' : alert.level === 'LEVEL_2' ? 'warning' : 'info';
+        
+        let detailsHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h4>${alert.full_name}</h4>
+                    <p class="mb-3">
+                        <span class="badge bg-${levelClass}">${alert.level.replace('_', ' ')}</span>
+                        <span class="ms-2">Priority Score: <strong>${alert.priority_score.toFixed(1)}</strong></span>
+                    </p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <p><small class="text-muted">PDL ID: ${alert.pdl_id}</small></p>
+                    <p><small class="text-muted">Generated: ${alert.timestamp}</small></p>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Departure Information</h6>
+                        </div>
+                        <div class="card-body">
+                            ${alert.departure_info ? `
+                                <p><strong>Company:</strong> ${alert.departure_info.company}</p>
+                                <p><strong>Role:</strong> ${alert.departure_info.role || '-'}</p>
+                                <p><strong>Departure Date:</strong> ${alert.departure_info.date}</p>
+                                <p><strong>Days Ago:</strong> ${alert.departure_info.days_ago}</p>
+                            ` : '<p class="text-muted">No departure information</p>'}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Current Status</h6>
+                        </div>
+                        <div class="card-body">
+                            ${alert.startup_info ? `
+                                <p><strong>Joined Startup:</strong> ${alert.startup_info.startup_name}</p>
+                                <p><strong>Match Confidence:</strong> ${(alert.startup_info.match_confidence * 100).toFixed(0)}%</p>
+                            ` : alert.job_company_name ? `
+                                <p><strong>Current Company:</strong> ${alert.job_company_name}</p>
+                            ` : '<p class="text-muted">No current company information</p>'}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Scores</h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Founder Score:</strong> ${alert.founder_score.toFixed(1)}/10</p>
+                            <p><strong>Stealth Score:</strong> ${alert.stealth_score}/100</p>
+                            <p><strong>Priority Score:</strong> ${alert.priority_score.toFixed(1)}/100</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            ${alert.building_phrases && alert.building_phrases.length > 0 ? `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">Building Signals</h6>
+                            </div>
+                            <div class="card-body">
+                                ${alert.building_phrases.map(phrase => `<span class="badge bg-secondary me-2 mb-2">${phrase}</span>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+            
+            ${alert.alert_reasons && alert.alert_reasons.length > 0 ? `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">Alert Reasons</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    ${alert.alert_reasons.map(reason => `<li>${reason}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+            
+            ${alert.stealth_signals && alert.stealth_signals.length > 0 ? `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">Stealth Signals</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    ${alert.stealth_signals.map(signal => `<li>${signal}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+        `;
+        
+        $('#alertDetailsContent').html(detailsHtml);
+        $('#alertDetailsModal').modal('show');
+    });
+    
+    // Export to CSV
+    $('#exportCsvBtn').click(function() {
+        let csv = 'Level,Name,Previous Company,Current Status,Building Signals,Founder Score,Stealth Score,Priority,Days Since Left\n';
+        
+        table.rows().data().each(function(row) {
+            const $row = $(row);
+            const alert = $row.find('.view-details-btn').data('alert');
+            
+            csv += `"${alert.level}",`;
+            csv += `"${alert.full_name}",`;
+            csv += `"${alert.departure_info ? alert.departure_info.company : ''}",`;
+            csv += `"${alert.startup_info ? alert.startup_info.startup_name : alert.job_company_name || ''}",`;
+            csv += `"${alert.building_phrases ? alert.building_phrases.join('|') : ''}",`;
+            csv += `${alert.founder_score.toFixed(1)},`;
+            csv += `${alert.stealth_score},`;
+            csv += `${alert.priority_score.toFixed(1)},`;
+            csv += `${alert.departure_info ? alert.departure_info.days_ago : ''}\n`;
+        });
+        
+        // Create download link
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `alerts_export_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    });
+});
+</script>
+{% endblock %}
