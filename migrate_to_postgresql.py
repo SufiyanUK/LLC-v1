@@ -30,7 +30,7 @@ def parse_database_url(database_url):
 
 def get_sqlite_data():
     """Get all data from SQLite database"""
-    print("\n📖 Reading from SQLite database...")
+    print("\n[READ] Reading from SQLite database...")
 
     # Find SQLite database
     db_path = Path('data/tracking.db')
