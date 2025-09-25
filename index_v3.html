@@ -141,22 +141,68 @@
             padding: 15px;
             cursor: pointer;
             transition: all 0.3s;
+            position: relative;
         }
-        
+
         .company-box:hover {
             border-color: #667eea;
             transform: translateY(-2px);
         }
-        
+
         .company-box.selected {
             background: #edf2f7;
             border-color: #667eea;
+        }
+
+        .company-box.custom {
+            background: #fff5f5;
+            border-color: #feb2b2;
+        }
+
+        .company-box.custom:hover {
+            border-color: #f56565;
+            transform: translateY(-2px);
+        }
+
+        .company-box.custom.selected {
+            background: #fed7d7;
+            border-color: #f56565;
         }
         
         .company-name {
             font-weight: 600;
             color: #2d3748;
             margin-bottom: 5px;
+        }
+
+        .delete-company-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #fed7d7;
+            border: 1px solid #f56565;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: #c53030;
+            transition: all 0.2s;
+            opacity: 0.7;
+        }
+
+        .delete-company-btn:hover {
+            background: #f56565;
+            color: white;
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .company-box:hover .delete-company-btn {
+            opacity: 1;
         }
         
         .company-count {
@@ -359,6 +405,79 @@
             color: #4a5568;
             font-size: 14px;
         }
+
+        /* Confirmation Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #e53e3e;
+            margin-bottom: 15px;
+        }
+
+        .modal-message {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-cancel {
+            background: #edf2f7;
+            color: #4a5568;
+        }
+
+        .modal-btn-cancel:hover {
+            background: #e2e8f0;
+        }
+
+        .modal-btn-confirm {
+            background: #e53e3e;
+            color: white;
+        }
+
+        .modal-btn-confirm:hover {
+            background: #c53030;
+        }
     </style>
 </head>
 <body>
@@ -370,6 +489,7 @@
         
         <div class="tabs">
             <button class="tab active" onclick="showTab('track')">Track Employees</button>
+            <button class="tab" onclick="showTab('individual')">🔍 Individual Search</button>
             <button class="tab" onclick="showTab('monitor')">👥 Monitor</button>
             <button class="tab" onclick="showTab('backup')"> Backup/Restore</button>
             <button class="tab" onclick="showTab('departures')"> Departures</button>
@@ -493,7 +613,69 @@
                 </div>
             </div>
         </div>
-        
+
+        <!-- Individual Search Tab -->
+        <div id="individual-tab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">🔍</span> Search Individual Employees</h2>
+                <p style="color: #718096; margin-bottom: 20px;">Search for employees by name, title, location, or skills</p>
+
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="search-name" placeholder="e.g., John Doe">
+                </div>
+
+                <div class="form-group">
+                    <label>Job Title</label>
+                    <input type="text" id="search-title" placeholder="e.g., Senior Engineer, Director">
+                </div>
+
+                <div class="form-group">
+                    <label>Company</label>
+                    <input type="text" id="search-company" placeholder="e.g., Google, Meta">
+                </div>
+
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" id="search-location" placeholder="e.g., San Francisco, CA">
+                </div>
+
+                <div class="form-group">
+                    <label>Skills (comma-separated)</label>
+                    <input type="text" id="search-skills" placeholder="e.g., Python, Machine Learning, AWS">
+                </div>
+
+                <div class="form-group">
+                    <label>Seniority Level</label>
+                    <select id="search-seniority">
+                        <option value="">Any</option>
+                        <option value="senior">Senior</option>
+                        <option value="staff">Staff</option>
+                        <option value="principal">Principal</option>
+                        <option value="director">Director</option>
+                        <option value="vp">VP</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Max Results</label>
+                    <input type="number" id="search-max-results" value="10" min="1" max="50">
+                </div>
+
+                <button class="btn btn-primary" onclick="searchIndividuals()">
+                    🔍 Search Employees
+                </button>
+
+                <div id="search-status" style="margin-top: 20px;"></div>
+
+                <!-- Search Results -->
+                <div id="search-results" style="margin-top: 20px; display: none;">
+                    <h3 style="margin-bottom: 15px;">Search Results</h3>
+                    <div id="search-results-list"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Configuration Tab -->
         <div id="config-tab" class="tab-content">
             <div class="card">
@@ -515,8 +697,8 @@
     
     <script>
         // Automatically use the current domain for API calls
-        const API_BASE = window.location.hostname === 'localhost' 
-            ? 'http://localhost:8002' 
+        const API_BASE = window.location.hostname === 'localhost'
+            ? 'http://localhost:8001'
             : '';  // Empty string means use relative URLs on production
         let selectedCompanies = {};
         let companySuggestions = {};
@@ -578,13 +760,26 @@
                 companies.companies.forEach(company => {
                     const suggestion = companySuggestions[company] || { recommended: 5 };
                     const box = document.createElement('div');
-                    box.className = 'company-box';
+
+                    // Check if it's a custom company
+                    const isCustom = companies.custom && companies.custom.includes(company);
+                    box.className = isCustom ? 'company-box custom' : 'company-box';
+
+                    const companyLabel = isCustom ? `${company} 🆕` : company;
+                    const trackedCount = companies.employee_counts ? (companies.employee_counts[company] || 0) : 0;
+
                     box.innerHTML = `
-                        <div class="company-name">${company}</div>
-                        <div style="color: #718096; font-size: 12px;">Rec: ${suggestion.recommended}</div>
+                        <button class="delete-company-btn" onclick="showDeleteModal('${company}')" title="Delete company">
+                            ×
+                        </button>
+                        <div class="company-name">${companyLabel}</div>
+                        <div style="color: #4a5568; font-size: 12px; font-weight: 500; margin-bottom: 8px;">
+                            👥 Tracked: ${trackedCount} employee${trackedCount !== 1 ? 's' : ''}
+                            ${isCustom ? ' (Custom)' : ''}
+                        </div>
                         <div class="company-count">
                             <label>Count:</label>
-                            <input type="number" id="count-${company}" min="0" max="100" value="0" 
+                            <input type="number" id="count-${company}" min="0" max="100" value="0"
                                    onchange="updateCompanySelection('${company}')">
                         </div>
                     `;
@@ -712,6 +907,9 @@
                     showMessage(data.message, 'success');
                     document.getElementById('customCompany').value = '';
                     document.getElementById('customCount').value = '5';
+
+                    // Refresh the company list to show the new custom company
+                    loadCompanies();
                     loadStatus();
                     loadEmployees();
                 } else {
@@ -1181,7 +1379,136 @@
                 showMessage('Error: ' + error.message, 'error');
             }
         }
-        
+
+        // Individual Employee Search Functions
+        async function searchIndividuals() {
+            const statusDiv = document.getElementById('search-status');
+            const resultsDiv = document.getElementById('search-results');
+            const resultsList = document.getElementById('search-results-list');
+
+            // Gather search parameters
+            const searchParams = {
+                name: document.getElementById('search-name').value.trim(),
+                title: document.getElementById('search-title').value.trim(),
+                company: document.getElementById('search-company').value.trim(),
+                location: document.getElementById('search-location').value.trim(),
+                seniority_level: document.getElementById('search-seniority').value,
+                max_results: parseInt(document.getElementById('search-max-results').value)
+            };
+
+            // Handle skills
+            const skillsInput = document.getElementById('search-skills').value.trim();
+            if (skillsInput) {
+                searchParams.skills = skillsInput.split(',').map(s => s.trim()).filter(s => s);
+            }
+
+            // Remove empty parameters
+            Object.keys(searchParams).forEach(key => {
+                if (!searchParams[key] || (Array.isArray(searchParams[key]) && searchParams[key].length === 0)) {
+                    delete searchParams[key];
+                }
+            });
+
+            // Check if at least one search parameter is provided
+            if (Object.keys(searchParams).length === 1 && searchParams.max_results) {
+                showMessage('Please provide at least one search criteria', 'error');
+                return;
+            }
+
+            statusDiv.innerHTML = '<div class="message info">Searching...</div>';
+            resultsDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/search/employees`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(searchParams)
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.employees && data.employees.length > 0) {
+                    statusDiv.innerHTML = `<div class="message success">Found ${data.count} employees (${data.credits_used} credits used)</div>`;
+
+                    // Display results
+                    resultsList.innerHTML = '';
+                    data.employees.forEach(emp => {
+                        const empDiv = document.createElement('div');
+                        empDiv.className = 'employee-item';
+                        empDiv.style.cssText = 'background: #f7fafc; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #e2e8f0;';
+
+                        empDiv.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    <h4 style="margin: 0 0 5px 0; color: #2d3748;">${emp.name}</h4>
+                                    <p style="margin: 0; color: #718096; font-size: 14px;">${emp.title} at ${emp.company}</p>
+                                    <p style="margin: 5px 0; color: #718096; font-size: 12px;">📍 ${emp.location}</p>
+                                    ${emp.skills && emp.skills.length > 0 ? `
+                                        <div style="margin-top: 8px;">
+                                            ${emp.skills.map(skill => `<span style="display: inline-block; background: #edf2f7; color: #4a5568; padding: 2px 8px; margin-right: 5px; margin-bottom: 5px; border-radius: 4px; font-size: 12px;">${skill}</span>`).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <button class="btn btn-primary" onclick="trackIndividualEmployee('${emp.pdl_id}', '${emp.name.replace(/'/g, "\\'")}', '${emp.title.replace(/'/g, "\\'")}', '${emp.company.replace(/'/g, "\\'")}')">
+                                    + Track
+                                </button>
+                            </div>
+                        `;
+
+                        resultsList.appendChild(empDiv);
+                    });
+
+                    resultsDiv.style.display = 'block';
+                } else if (data.success && data.employees.length === 0) {
+                    statusDiv.innerHTML = '<div class="message info">No employees found matching your criteria</div>';
+                    resultsDiv.style.display = 'none';
+                } else {
+                    statusDiv.innerHTML = `<div class="message error">Search failed: ${data.message || 'Unknown error'}</div>`;
+                    resultsDiv.style.display = 'none';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="message error">Error: ${error.message}</div>`;
+                resultsDiv.style.display = 'none';
+            }
+        }
+
+        async function trackIndividualEmployee(pdlId, name, title, company) {
+            if (!confirm(`Add ${name} to tracking?`)) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/track/individual`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        pdl_id: pdlId,
+                        name: name,
+                        title: title,
+                        company: company
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(`Successfully added ${name} to tracking`, 'success');
+
+                    // Refresh employee list if on monitor tab
+                    const monitorTab = document.getElementById('monitor-tab');
+                    if (monitorTab && monitorTab.classList.contains('active')) {
+                        loadEmployees();
+                    }
+                } else {
+                    showMessage(data.message || 'Failed to add employee', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+
         // Show message
         function showMessage(text, type) {
             const msg = document.createElement('div');
@@ -1197,6 +1524,70 @@
                 msg.remove();
             }, 5000);
         }
+
+        // Company deletion functions
+        let companyToDelete = null;
+
+        function showDeleteModal(company) {
+            companyToDelete = company;
+            document.getElementById('companyNameSpan').textContent = company;
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+
+        function hideDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            companyToDelete = null;
+        }
+
+        async function confirmDeleteCompany() {
+            if (!companyToDelete) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/track/company/${encodeURIComponent(companyToDelete)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(`Successfully deleted ${companyToDelete} and all tracked employees`, 'success');
+                    hideDeleteModal();
+
+                    // Remove from selected companies if it was selected
+                    delete selectedCompanies[companyToDelete];
+                    updateSelectedDisplay();
+
+                    // Refresh company list
+                    await loadCompanies();
+                } else {
+                    showMessage(`Failed to delete company: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error deleting company: ${error.message}`, 'error');
+            }
+        }
     </script>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="modal-title">⚠️ Delete Company</h3>
+            <div class="modal-message">
+                Are you sure you want to delete <strong><span id="companyNameSpan"></span></strong>?<br><br>
+                <strong>This will permanently remove:</strong><br>
+                • The company from your tracking list<br>
+                • All tracked employees from this company<br>
+                • All historical data for this company<br><br>
+                <strong>This action cannot be undone.</strong>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="hideDeleteModal()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" onclick="confirmDeleteCompany()">Delete Company</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

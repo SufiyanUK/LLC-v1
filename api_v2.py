@@ -63,6 +63,21 @@ class CustomCompanyTracking(BaseModel):
     company_name: str = Field(..., description="Name of the new company to track")
     employee_count: int = Field(5, ge=1, le=100, description="Number of employees to track")
 
+class IndividualEmployeeSearch(BaseModel):
+    name: Optional[str] = Field(None, description="Employee name to search")
+    title: Optional[str] = Field(None, description="Job title keywords")
+    company: Optional[str] = Field(None, description="Current or past company")
+    location: Optional[str] = Field(None, description="Location (city, state, or country)")
+    skills: Optional[List[str]] = Field(None, description="List of skills to search for")
+    seniority_level: Optional[str] = Field(None, description="Seniority level (senior, staff, principal, director, vp)")
+    max_results: int = Field(10, ge=1, le=50, description="Maximum number of results to return")
+
+class TrackIndividualEmployee(BaseModel):
+    pdl_id: str = Field(..., description="PDL ID of the employee to track")
+    name: str = Field(..., description="Employee name")
+    title: str = Field(..., description="Employee title")
+    company: str = Field(..., description="Employee company")
+
 # API Endpoints
 
 @app.get("/", response_class=HTMLResponse)
@@ -156,7 +171,8 @@ async def api_docs():
                 "DELETE /track/employee/{pdl_id}": "Soft delete an employee",
                 "POST /track/employee/{pdl_id}/restore": "Restore a deleted employee",
                 "GET /track/deleted": "Get all deleted employees",
-                "POST /track/custom-company": "Add employees from a new company not in the list"
+                "POST /track/custom-company": "Add employees from a new company not in the list",
+                "DELETE /track/company/{company_name}": "Delete company and all its employees"
             }
         }
     }
@@ -398,34 +414,122 @@ async def get_departure_history():
 
 @app.get("/companies")
 async def get_companies():
-    """Get list of available companies"""
-    
+    """Get list of available companies including custom ones"""
+
+    # Get custom companies from database (companies not in TARGET_COMPANIES)
+    tracker = EmployeeTracker()
+    db_companies = tracker.db.get_all_companies()  # This should return company names from company_config
+
+    # Get employee counts for all companies
+    employee_counts = tracker.db.get_company_employee_counts()
+
+    # Find custom companies (companies in database but not in TARGET_COMPANIES)
+    target_companies_lower = [c.lower() for c in TARGET_COMPANIES]
+    custom_companies = []
+
+    for company_info in db_companies:
+        company_name = company_info.get('company', '')
+        if company_name.lower() not in target_companies_lower:
+            custom_companies.append(company_name)
+
+    # Combine predefined and custom companies
+    all_companies = TARGET_COMPANIES + custom_companies
+
     return {
-        "companies": TARGET_COMPANIES,
-        "total": len(TARGET_COMPANIES),
+        "companies": all_companies,
+        "total": len(all_companies),
+        "predefined": TARGET_COMPANIES,
+        "custom": custom_companies,
+        "employee_counts": employee_counts,
         "categories": {
             "ai_leaders": ["openai", "anthropic", "deepmind", "cohere", "mistral"],
             "tech_giants": ["meta", "google", "microsoft"],
             "platforms": ["uber", "airbnb", "linkedin"],
-            "enterprise": ["palantir", "scale ai"]
+            "enterprise": ["palantir", "scale ai"],
+            "custom": custom_companies
         }
     }
 
 @app.delete("/track/employee/{pdl_id}")
-async def delete_employee(pdl_id: str):
-    """Soft delete an employee from tracking"""
-    
+async def delete_employee(pdl_id: str, auto_refetch: bool = True):
+    """Soft delete an employee from tracking with auto-refetch for small teams"""
+
     tracker = EmployeeTracker()
+
+    # Get employee info before deletion
+    all_employees = tracker.db.get_all_employees()
+    employee_to_delete = None
+    for emp in all_employees:
+        if emp['pdl_id'] == pdl_id:
+            employee_to_delete = emp
+            break
+
+    if not employee_to_delete:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    company = employee_to_delete['company']
+
+    # Count active employees for this company
+    active_count = sum(1 for e in all_employees
+                      if e['company'] == company and e['status'] == 'active')
+
+    # Perform the soft delete
     success = tracker.db.soft_delete_employee(pdl_id)
-    
-    if success:
-        return {
-            "success": True,
-            "message": f"Employee {pdl_id} has been removed from tracking",
-            "pdl_id": pdl_id
-        }
-    else:
-        raise HTTPException(status_code=404, detail="Employee not found or already deleted")
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete employee")
+
+    refetch_result = None
+
+    # Auto-refetch logic: only if company has ≤5 employees and auto_refetch is enabled
+    if auto_refetch and active_count <= 5 and active_count > 0:
+        print(f"\n[AUTO-REFETCH] Company {company} has {active_count} employees, fetching replacement...")
+
+        try:
+            # Fetch 1 new employee to replace the deleted one
+            new_employees = tracker.fetch_senior_employees(company, count=1, exclude_existing=True)
+
+            if new_employees:
+                # Add to database
+                added, updated = tracker.db.add_employees(new_employees, company)
+
+                if added > 0:
+                    refetch_result = {
+                        "success": True,
+                        "message": f"Auto-fetched {added} replacement employee",
+                        "new_employee": {
+                            "name": new_employees[0].get('name'),
+                            "title": new_employees[0].get('title'),
+                            "pdl_id": new_employees[0].get('pdl_id')
+                        }
+                    }
+                    print(f"  [SUCCESS] Added {new_employees[0].get('name')} as replacement")
+                else:
+                    refetch_result = {
+                        "success": False,
+                        "message": "No new employees found to replace"
+                    }
+            else:
+                refetch_result = {
+                    "success": False,
+                    "message": "Could not fetch replacement employee"
+                }
+
+        except Exception as e:
+            print(f"  [ERROR] Auto-refetch failed: {e}")
+            refetch_result = {
+                "success": False,
+                "message": f"Auto-refetch failed: {str(e)}"
+            }
+
+    return {
+        "success": True,
+        "message": f"Employee {pdl_id} has been removed from tracking",
+        "pdl_id": pdl_id,
+        "company": company,
+        "remaining_count": active_count - 1,
+        "auto_refetch": refetch_result
+    }
 
 @app.post("/track/employee/{pdl_id}/restore")
 async def restore_employee(pdl_id: str):
@@ -442,6 +546,43 @@ async def restore_employee(pdl_id: str):
         }
     else:
         raise HTTPException(status_code=404, detail="Employee not found or not deleted")
+
+@app.delete("/track/company/{company_name}")
+async def delete_company(company_name: str):
+    """Delete a company and all its tracked employees"""
+
+    tracker = EmployeeTracker()
+
+    try:
+        # Get employee count first for response message
+        existing_employees = tracker.get_existing_employee_ids(company_name)
+        employee_count = len(existing_employees)
+
+        if employee_count == 0:
+            # Check if company exists in config
+            db_companies = tracker.db.get_all_companies()
+            company_exists = any(c['company'].lower() == company_name.lower() for c in db_companies)
+
+            if not company_exists:
+                raise HTTPException(status_code=404, detail=f"Company '{company_name}' not found")
+
+        # Delete company and all its employees
+        success = tracker.db.delete_company(company_name)
+
+        if success:
+            return {
+                "success": True,
+                "message": f"Successfully deleted company '{company_name}' and {employee_count} employees",
+                "company": company_name,
+                "employees_deleted": employee_count
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete company")
+
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Error deleting company: {str(e)}")
 
 @app.get("/track/deleted")
 async def get_deleted_employees():
@@ -491,6 +632,151 @@ async def track_custom_company(config: CustomCompanyTracking):
             "message": f"No employees found for company: {config.company_name}",
             "company": config.company_name,
             "employees_added": 0
+        }
+
+@app.post("/search/employees")
+async def search_employees(search_params: IndividualEmployeeSearch):
+    """Search for employees using individual criteria instead of company-based search"""
+
+    tracker = EmployeeTracker()
+
+    # Build SQL query based on provided parameters
+    conditions = []
+
+    if search_params.name:
+        conditions.append(f"full_name LIKE '%{search_params.name}%'")
+
+    if search_params.title:
+        conditions.append(f"job_title LIKE '%{search_params.title}%'")
+
+    if search_params.company:
+        conditions.append(f"job_company_name LIKE '%{search_params.company}%'")
+
+    if search_params.location:
+        conditions.append(f"(job_company_location_locality LIKE '%{search_params.location}%' OR job_company_location_region LIKE '%{search_params.location}%' OR job_company_location_country LIKE '%{search_params.location}%')")
+
+    if search_params.seniority_level:
+        conditions.append(f"job_title_levels = '{search_params.seniority_level}'")
+
+    if search_params.skills and len(search_params.skills) > 0:
+        skill_conditions = " OR ".join([f"skills LIKE '%{skill}%'" for skill in search_params.skills])
+        conditions.append(f"({skill_conditions})")
+
+    if not conditions:
+        raise HTTPException(status_code=400, detail="At least one search parameter is required")
+
+    # Construct the SQL query
+    where_clause = " AND ".join(conditions)
+    sql_query = f"SELECT * FROM person WHERE {where_clause}"
+
+    print(f"\n[SEARCH] Searching for employees with custom criteria")
+    print(f"  Query: {sql_query}")
+
+    # Use PDL API to search
+    import requests
+
+    params = {
+        'sql': sql_query,
+        'size': search_params.max_results
+    }
+
+    try:
+        response = requests.post(
+            tracker.base_url,
+            headers=tracker.headers,
+            json=params,
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+
+            if data.get('status') == 200:
+                employees = []
+
+                for person in data.get('data', []):
+                    # Extract relevant employee data
+                    employee = {
+                        'pdl_id': person.get('id'),
+                        'name': person.get('full_name', 'Unknown'),
+                        'title': person.get('job_title', 'N/A'),
+                        'company': person.get('job_company_name', 'N/A'),
+                        'location': f"{person.get('job_company_location_locality', '')}, {person.get('job_company_location_region', '')}",
+                        'linkedin_url': person.get('linkedin_url', ''),
+                        'skills': person.get('skills', [])[:5]  # Top 5 skills
+                    }
+                    employees.append(employee)
+
+                print(f"  Found {len(employees)} employees matching criteria")
+
+                return {
+                    "success": True,
+                    "count": len(employees),
+                    "employees": employees,
+                    "credits_used": search_params.max_results
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Search failed: {data.get('error', 'Unknown error')}",
+                    "employees": []
+                }
+
+        elif response.status_code == 402:
+            raise HTTPException(status_code=402, detail="PDL API credits exhausted")
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"PDL API error: {response.text}")
+
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Search request timed out")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Search request failed: {str(e)}")
+
+@app.post("/track/individual")
+async def track_individual_employee(employee: TrackIndividualEmployee):
+    """Add a specific individual employee to tracking"""
+
+    tracker = EmployeeTracker()
+
+    # Check if employee already exists
+    existing_employees = tracker.db.get_all_employees()
+    for emp in existing_employees:
+        if emp['pdl_id'] == employee.pdl_id and emp['status'] != 'deleted':
+            return {
+                "success": False,
+                "message": f"Employee {employee.name} is already being tracked",
+                "pdl_id": employee.pdl_id
+            }
+
+    # Create employee record
+    employee_data = [{
+        'pdl_id': employee.pdl_id,
+        'name': employee.name,
+        'title': employee.title,
+        'company': employee.company,
+        'current_company': employee.company,
+        'linkedin_url': '',  # Can be updated later
+        'status': 'active',
+        'last_checked': datetime.now().isoformat()
+    }]
+
+    # Add to database
+    added, updated = tracker.db.add_employees(employee_data, employee.company)
+
+    if added > 0:
+        stats = tracker.db.get_statistics()
+
+        return {
+            "success": True,
+            "message": f"Successfully added {employee.name} to tracking",
+            "pdl_id": employee.pdl_id,
+            "total_tracked": stats['total_tracked']
+        }
+    else:
+        return {
+            "success": False,
+            "message": "Failed to add employee to tracking",
+            "pdl_id": employee.pdl_id
         }
 
 @app.get("/scheduler/status")
@@ -556,10 +842,10 @@ async def disable_scheduler():
 
 @app.get("/company-suggestions")
 async def get_company_suggestions():
-    """Get suggested employee counts for each company"""
-    
-    # Suggestions based on company size and importance
-    suggestions = {
+    """Get suggested employee counts for each company including custom ones"""
+
+    # Predefined suggestions based on company size and importance
+    predefined_suggestions = {
         "openai": {"min": 5, "recommended": 15, "max": 30},
         "anthropic": {"min": 5, "recommended": 15, "max": 30},
         "meta": {"min": 10, "recommended": 25, "max": 50},
@@ -574,12 +860,28 @@ async def get_company_suggestions():
         "linkedin": {"min": 5, "recommended": 15, "max": 30},
         "palantir": {"min": 5, "recommended": 15, "max": 30}
     }
-    
+
+    # Get custom companies and add default suggestions
+    tracker = EmployeeTracker()
+    db_companies = tracker.db.get_all_companies()
+
+    suggestions = predefined_suggestions.copy()
+    target_companies_lower = [c.lower() for c in TARGET_COMPANIES]
+
+    # Add suggestions for custom companies
+    for company_info in db_companies:
+        company_name = company_info.get('company', '')
+        if company_name.lower() not in target_companies_lower:
+            # Default suggestion for custom companies
+            suggestions[company_name] = {"min": 3, "recommended": 8, "max": 20}
+
     total_recommended = sum(s['recommended'] for s in suggestions.values())
-    
+
     return {
         "suggestions": suggestions,
         "total_recommended_credits": total_recommended,
+        "predefined_count": len(predefined_suggestions),
+        "custom_count": len(suggestions) - len(predefined_suggestions),
         "note": "Adjust based on your budget and priority companies"
     }
 

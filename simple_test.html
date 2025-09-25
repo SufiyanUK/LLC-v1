@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Company Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .company {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+        .error { color: red; }
+        .success { color: green; }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Employee Tracker - Simple Test</h1>
+
+    <div>
+        <button onclick="testCompanies()">Test /companies</button>
+        <button onclick="testSuggestions()">Test /company-suggestions</button>
+        <button onclick="testStatus()">Test /track/status</button>
+    </div>
+
+    <div id="output"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8001';
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            output.appendChild(div);
+        }
+
+        async function testCompanies() {
+            log('Testing /companies endpoint...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/companies`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✓ SUCCESS: Found ${data.companies.length} companies`, 'success');
+
+                    // Display companies
+                    data.companies.forEach(company => {
+                        log(`  - ${company}`, 'info');
+                    });
+                } else {
+                    log(`✗ ERROR: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`✗ NETWORK ERROR: ${error.message}`, 'error');
+                log('Make sure your server is running on localhost:8000', 'error');
+            }
+        }
+
+        async function testSuggestions() {
+            log('Testing /company-suggestions endpoint...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/company-suggestions`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const suggestions = data.suggestions;
+                    log(`✓ SUCCESS: Found suggestions for ${Object.keys(suggestions).length} companies`, 'success');
+
+                    // Display first few suggestions
+                    Object.entries(suggestions).slice(0, 3).forEach(([company, suggestion]) => {
+                        log(`  - ${company}: recommended ${suggestion.recommended}`, 'info');
+                    });
+                } else {
+                    log(`✗ ERROR: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`✗ NETWORK ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        async function testStatus() {
+            log('Testing /track/status endpoint...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/track/status`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✓ SUCCESS: ${data.total_employees} employees tracked`, 'success');
+                    log(`  Companies tracked: ${data.companies_tracked}`, 'info');
+
+                    // Display companies with employees
+                    if (data.companies_with_employees) {
+                        data.companies_with_employees.forEach(company_data => {
+                            log(`  - ${company_data.company}: ${company_data.employee_count} employees`, 'info');
+                        });
+                    }
+                } else {
+                    log(`✗ ERROR: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`✗ NETWORK ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        // Test all endpoints on page load
+        window.onload = function() {
+            log('Simple Employee Tracker Test Page Loaded', 'success');
+            log('Click the buttons above to test each endpoint', 'info');
+        };
+    </script>
+</body>
+</html>

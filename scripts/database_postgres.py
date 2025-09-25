@@ -502,10 +502,89 @@ class TrackingDatabase:
         """, (limit,))
         
         history = [dict(row) for row in cursor.fetchall()]
-        
+
         conn.close()
         return history
-    
+
+    def get_all_companies(self) -> List[Dict]:
+        """Get all companies from company_config table"""
+        conn = self.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT company, employee_count, last_updated
+            FROM company_config
+            ORDER BY company
+        """)
+
+        companies = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+        return companies
+
+    def delete_company(self, company_name: str) -> bool:
+        """Delete a company and all its tracked employees"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Delete all employees from this company
+            cursor.execute("""
+                DELETE FROM tracked_employees
+                WHERE company = %s
+            """, (company_name,))
+
+            employees_deleted = cursor.rowcount
+
+            # Delete company from company_config
+            cursor.execute("""
+                DELETE FROM company_config
+                WHERE company = %s
+            """, (company_name,))
+
+            # Delete from fetch_history
+            cursor.execute("""
+                DELETE FROM fetch_history
+                WHERE company = %s
+            """, (company_name,))
+
+            # Delete from departures
+            cursor.execute("""
+                DELETE FROM departures
+                WHERE old_company = %s OR new_company = %s
+            """, (company_name, company_name))
+
+            conn.commit()
+            conn.close()
+
+            print(f"[DATABASE] Deleted company '{company_name}' and {employees_deleted} employees")
+            return True
+
+        except Exception as e:
+            print(f"[DATABASE] Error deleting company: {e}")
+            conn.rollback()
+            conn.close()
+            return False
+
+    def get_company_employee_counts(self) -> dict:
+        """Get count of tracked employees for each company"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT company, COUNT(*) as employee_count
+            FROM tracked_employees
+            GROUP BY company
+            ORDER BY company
+        """)
+
+        counts = {}
+        for row in cursor.fetchall():
+            counts[row[0]] = row[1]
+
+        conn.close()
+        return counts
+
     def fix_existing_linkedin_urls(self):
         """One-time fix for existing LinkedIn URLs in the database"""
         conn = self.get_connection()
