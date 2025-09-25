@@ -1,1 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# Environment variables
 .env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/tracking.db
+data/monitoring/
+
+# Data files
+data/raw/
+data/processed/
+data/alerts/
+data/results/
+
+# Test output
+test_output/
+*.jsonl
+
+# SQL dumps
+*.sql
+employee_list.txt
+person_details.json
+meta_query_results*.json
+
+# Claude
+.claude/
+
+# Temporary
+*.tmp
+*.bak
+nul
