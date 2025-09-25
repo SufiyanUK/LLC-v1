@@ -41,25 +41,25 @@ In your Railway app service, go to Variables tab and add:
 
 ```env
 # PDL API Key
-API_KEY=e6419b40326f0d2a7848b04c2be9ad0b46b868963cb8f4cb4b6764f58c8427ac
+API_KEY=<YOUR_PDL_API_KEY_HERE>
 
 # Email Configuration (Brevo)
-BREVO_API_KEY=<YOUR_BREVO_API_KEY_HERE>-hv8po24OgD5n4ajw
-BREVO_SENDER_EMAIL=alerts@venrock.com
-BREVO_SENDER_NAME=Venrock Alerts
+BREVO_API_KEY=<YOUR_BREVO_API_KEY_HERE>
+BREVO_SENDER_EMAIL=alerts@yourcompany.com
+BREVO_SENDER_NAME=Your Company Alerts
 
 # SMTP Fallback
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
-SENDER_EMAIL=muazzainmuhammad07@gmail.com
-SENDER_PASSWORD=kkja cuwd kohh voix
+SENDER_EMAIL=<YOUR_EMAIL_HERE>
+SENDER_PASSWORD=<YOUR_APP_PASSWORD_HERE>
 
 # Alert Settings
-ALERT_EMAIL=venrocksourcing@gmail.com
+ALERT_EMAIL=<YOUR_ALERT_EMAIL_HERE>
 MIN_ALERT_LEVEL=1
 
 # Cron Security
-CRON_SECRET_TOKEN=vr-tracker-secret-2024-x7k9m3
+CRON_SECRET_TOKEN=<YOUR_SECRET_TOKEN_HERE>
 
 # Note: DATABASE_URL will be automatically added by Railway
 ```
