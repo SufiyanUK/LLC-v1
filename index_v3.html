@@ -100,6 +100,59 @@
             margin-right: 10px;
             font-size: 24px;
         }
+
+        .credits-display {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+            padding: 8px 16px;
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .credits-display.low {
+            background: #fef2f2;
+            border-color: #fca5a5;
+            color: #dc2626;
+        }
+
+        .credits-display.medium {
+            background: #fffbeb;
+            border-color: #fbbf24;
+            color: #d97706;
+        }
+
+        .credits-display.high {
+            background: #f0fdf4;
+            border-color: #86efac;
+            color: #16a34a;
+        }
+
+        .credits-refresh {
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 4px;
+            font-size: 16px;
+            transition: transform 0.3s;
+        }
+
+        .credits-refresh:hover {
+            transform: rotate(180deg);
+        }
+
+        .credits-refresh.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
         
         .stats-grid {
             display: grid;
@@ -501,7 +554,13 @@
         <div id="track-tab" class="tab-content active">
             <div class="main-grid">
                 <div class="card">
-                    <h2><span class="icon">🏢</span> Select Companies</h2>
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <h2 style="margin: 0;"><span class="icon">🏢</span> Select Companies</h2>
+                        <div class="credits-display" id="creditsDisplay">
+                            <span id="creditsText">Loading credits...</span>
+                            <button class="credits-refresh" id="creditsRefresh" title="Refresh credits">🔄</button>
+                        </div>
+                    </div>
                     <p style="color: #718096; margin-bottom: 15px;">Select from existing companies to track</p>
                     <div class="company-grid" id="companyGrid">
                         <!-- Companies will be loaded here -->
@@ -709,7 +768,54 @@
             loadStatus();
             loadEmployees();
             loadSchedulerStatus();
+            loadCredits();  // Load credits on page load
         };
+
+        // Function to load and display credits
+        async function loadCredits() {
+            const creditsDisplay = document.getElementById('creditsDisplay');
+            const creditsText = document.getElementById('creditsText');
+            const refreshBtn = document.getElementById('creditsRefresh');
+
+            try {
+                refreshBtn.classList.add('spinning');
+
+                const response = await fetch(`${API_BASE}/api/credits`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    const remaining = data.remaining || 0;
+                    creditsText.textContent = `Credits: ${remaining.toLocaleString()} 💳`;
+
+                    // Update color based on remaining credits
+                    creditsDisplay.classList.remove('low', 'medium', 'high');
+                    if (remaining < 20) {
+                        creditsDisplay.classList.add('low');
+                    } else if (remaining < 50) {
+                        creditsDisplay.classList.add('medium');
+                    } else {
+                        creditsDisplay.classList.add('high');
+                    }
+                } else {
+                    creditsText.textContent = 'Credits: Error';
+                    creditsDisplay.classList.add('low');
+                }
+            } catch (error) {
+                console.error('Error loading credits:', error);
+                creditsText.textContent = 'Credits: N/A';
+                creditsDisplay.classList.add('medium');
+            } finally {
+                refreshBtn.classList.remove('spinning');
+            }
+        }
+
+        // Add click event to refresh button
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.getElementById('creditsRefresh');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', loadCredits);
+            }
+        });
         
         // Tab switching
         function showTab(tabName) {
@@ -868,6 +974,7 @@
                     loadEmployees();
                     selectedCompanies = {};
                     loadCompanies(); // Reset selection
+                    loadCredits();  // Update credits after fetching employees
                 } else {
                     showMessage('Failed to initialize tracking', 'error');
                 }
@@ -1206,6 +1313,7 @@
                             </div>
                         `;
                         loadDepartures();
+                        loadCredits();  // Update credits after check completes
                     } else {
                         statusDiv.innerHTML = `
                             <div class="loading"></div> 
@@ -1558,7 +1666,6 @@
 
                     // Remove from selected companies if it was selected
                     delete selectedCompanies[companyToDelete];
-                    updateSelectedDisplay();
 
                     // Refresh company list
                     await loadCompanies();

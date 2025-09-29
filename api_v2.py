@@ -412,6 +412,49 @@ async def get_departure_history():
         }
     }
 
+@app.get("/api/credits")
+async def get_credits():
+    """Get remaining PDL API credits - FREE method using HEAD request"""
+    try:
+        import requests
+        from dotenv import load_dotenv
+        load_dotenv()
+
+        api_key = os.getenv('API_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="API key not configured")
+
+        # Use HEAD request to get credit info WITHOUT consuming credits
+        # This returns 400 status but includes all credit headers for free!
+        url = "https://api.peopledatalabs.com/v5/person/search"
+        headers = {
+            'X-Api-Key': api_key
+        }
+
+        # HEAD request - returns 400 but includes credit headers with 0 cost
+        response = requests.head(url, headers=headers)
+
+        # Even though status is 400, we still get credit headers
+        # Check if we have the credit headers we need
+        if 'X-TotalLimit-Remaining' in response.headers:
+            # Extract credit information from headers
+            credits_info = {
+                'remaining': int(response.headers.get('X-TotalLimit-Remaining', 0)),
+                'purchased_remaining': int(response.headers.get('X-TotalLimit-Purchased-Remaining', 0)),
+                'overages_remaining': int(response.headers.get('X-TotalLimit-Overages-Remaining', 0)),
+                'lifetime_used': int(response.headers.get('X-Lifetime-Used', 0)),
+                'last_call_spent': int(response.headers.get('X-Call-Credits-Spent', 0))  # Should be 0
+            }
+            return JSONResponse(content=credits_info)
+        else:
+            # Fallback error if headers are missing
+            raise HTTPException(status_code=500, detail="Credit information not available in response")
+
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"API request failed: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/companies")
 async def get_companies():
     """Get list of available companies including custom ones"""
