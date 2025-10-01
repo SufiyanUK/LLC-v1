@@ -164,8 +164,10 @@ async def api_docs():
                 "GET /check/history": "Get departure history"
             },
             "Configuration": {
-                "GET /companies": "List available companies",
-                "GET /company-suggestions": "Get suggested employee counts"
+                "GET /companies": "List available companies with default counts",
+                "GET /company-suggestions": "Get suggested employee counts",
+                "POST /company/{company_name}/set-default": "Set default employee count for a company",
+                "GET /company/{company_name}/default": "Get default employee count for a company"
             },
             "Employee Management": {
                 "DELETE /track/employee/{pdl_id}": "Soft delete an employee",
@@ -466,6 +468,9 @@ async def get_companies():
     # Get employee counts for all companies
     employee_counts = tracker.db.get_company_employee_counts()
 
+    # Get default counts for all companies
+    default_counts = tracker.db.get_all_company_defaults()
+
     # Find custom companies (companies in database but not in TARGET_COMPANIES)
     target_companies_lower = [c.lower() for c in TARGET_COMPANIES]
     custom_companies = []
@@ -484,6 +489,7 @@ async def get_companies():
         "predefined": TARGET_COMPANIES,
         "custom": custom_companies,
         "employee_counts": employee_counts,
+        "default_counts": default_counts,
         "categories": {
             "ai_leaders": ["openai", "anthropic", "deepmind", "cohere", "mistral"],
             "tech_giants": ["meta", "google", "microsoft"],
@@ -495,7 +501,7 @@ async def get_companies():
 
 @app.delete("/track/employee/{pdl_id}")
 async def delete_employee(pdl_id: str, auto_refetch: bool = True):
-    """Soft delete an employee from tracking with auto-refetch for small teams"""
+    """Soft delete an employee from tracking with auto-refetch based on default count"""
 
     tracker = EmployeeTracker()
 
@@ -516,6 +522,9 @@ async def delete_employee(pdl_id: str, auto_refetch: bool = True):
     active_count = sum(1 for e in all_employees
                       if e['company'] == company and e['status'] == 'active')
 
+    # Get default count for this company
+    default_count = tracker.db.get_company_default_count(company)
+
     # Perform the soft delete
     success = tracker.db.soft_delete_employee(pdl_id)
 
@@ -523,14 +532,16 @@ async def delete_employee(pdl_id: str, auto_refetch: bool = True):
         raise HTTPException(status_code=500, detail="Failed to delete employee")
 
     refetch_result = None
+    new_active_count = active_count - 1
 
-    # Auto-refetch logic: only if company has ≤5 employees and auto_refetch is enabled
-    if auto_refetch and active_count <= 5 and active_count > 0:
-        print(f"\n[AUTO-REFETCH] Company {company} has {active_count} employees, fetching replacement...")
+    # Auto-refetch logic: if default is set and we're now below it
+    if auto_refetch and default_count is not None and new_active_count < default_count:
+        employees_to_fetch = default_count - new_active_count
+        print(f"\n[AUTO-REFETCH] Company {company} is below default ({new_active_count}/{default_count}), fetching {employees_to_fetch} replacement(s)...")
 
         try:
-            # Fetch 1 new employee to replace the deleted one
-            new_employees = tracker.fetch_senior_employees(company, count=1, exclude_existing=True)
+            # Fetch employees to reach the default count
+            new_employees = tracker.fetch_senior_employees(company, count=employees_to_fetch, exclude_existing=True)
 
             if new_employees:
                 # Add to database
@@ -539,14 +550,17 @@ async def delete_employee(pdl_id: str, auto_refetch: bool = True):
                 if added > 0:
                     refetch_result = {
                         "success": True,
-                        "message": f"Auto-fetched {added} replacement employee",
-                        "new_employee": {
-                            "name": new_employees[0].get('name'),
-                            "title": new_employees[0].get('title'),
-                            "pdl_id": new_employees[0].get('pdl_id')
-                        }
+                        "message": f"Auto-fetched {added} replacement employee(s) to maintain default of {default_count}",
+                        "employees_added": added,
+                        "new_employees": [
+                            {
+                                "name": emp.get('name') or emp.get('full_name'),
+                                "title": emp.get('title') or emp.get('job_title'),
+                                "pdl_id": emp.get('pdl_id') or emp.get('id')
+                            } for emp in new_employees[:added]
+                        ]
                     }
-                    print(f"  [SUCCESS] Added {new_employees[0].get('name')} as replacement")
+                    print(f"  [SUCCESS] Added {added} replacement employee(s)")
                 else:
                     refetch_result = {
                         "success": False,
@@ -555,7 +569,7 @@ async def delete_employee(pdl_id: str, auto_refetch: bool = True):
             else:
                 refetch_result = {
                     "success": False,
-                    "message": "Could not fetch replacement employee"
+                    "message": "Could not fetch replacement employee(s)"
                 }
 
         except Exception as e:
@@ -570,7 +584,8 @@ async def delete_employee(pdl_id: str, auto_refetch: bool = True):
         "message": f"Employee {pdl_id} has been removed from tracking",
         "pdl_id": pdl_id,
         "company": company,
-        "remaining_count": active_count - 1,
+        "remaining_count": new_active_count,
+        "default_count": default_count,
         "auto_refetch": refetch_result
     }
 
@@ -927,6 +942,42 @@ async def get_company_suggestions():
         "custom_count": len(suggestions) - len(predefined_suggestions),
         "note": "Adjust based on your budget and priority companies"
     }
+
+@app.post("/company/{company_name}/set-default")
+async def set_company_default(company_name: str, default_count: int = Query(..., ge=0, le=100)):
+    """Set the default employee tracking count for a company (0 = no auto-refetch)"""
+
+    tracker = EmployeeTracker()
+    success = tracker.db.set_company_default_count(company_name, default_count)
+
+    if success:
+        return {
+            "success": True,
+            "message": f"Set default count for {company_name} to {default_count}",
+            "company": company_name,
+            "default_count": default_count
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to set default count")
+
+@app.get("/company/{company_name}/default")
+async def get_company_default(company_name: str):
+    """Get the default employee tracking count for a company"""
+
+    tracker = EmployeeTracker()
+    default_count = tracker.db.get_company_default_count(company_name)
+
+    if default_count is not None:
+        return {
+            "company": company_name,
+            "default_count": default_count
+        }
+    else:
+        return {
+            "company": company_name,
+            "default_count": None,
+            "message": "No default set for this company"
+        }
 
 # Background tasks
 

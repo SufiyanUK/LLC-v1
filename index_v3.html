@@ -757,7 +757,7 @@
     <script>
         // Automatically use the current domain for API calls
         const API_BASE = window.location.hostname === 'localhost'
-            ? 'http://localhost:8001'
+            ? 'http://localhost:8002'
             : '';  // Empty string means use relative URLs on production
         let selectedCompanies = {};
         let companySuggestions = {};
@@ -854,15 +854,15 @@
                     fetch(`${API_BASE}/companies`),
                     fetch(`${API_BASE}/company-suggestions`)
                 ]);
-                
+
                 const companies = await companiesRes.json();
                 const suggestions = await suggestionsRes.json();
-                
+
                 companySuggestions = suggestions.suggestions;
-                
+
                 const grid = document.getElementById('companyGrid');
                 grid.innerHTML = '';
-                
+
                 companies.companies.forEach(company => {
                     const suggestion = companySuggestions[company] || { recommended: 5 };
                     const box = document.createElement('div');
@@ -873,6 +873,12 @@
 
                     const companyLabel = isCustom ? `${company} 🆕` : company;
                     const trackedCount = companies.employee_counts ? (companies.employee_counts[company] || 0) : 0;
+                    const defaultCount = companies.default_counts ? (companies.default_counts[company] || null) : null;
+
+                    // Show default count indicator
+                    const defaultIndicator = defaultCount !== null
+                        ? `🎯 Default: ${defaultCount}`
+                        : '';
 
                     box.innerHTML = `
                         <button class="delete-company-btn" onclick="showDeleteModal('${company}')" title="Delete company">
@@ -882,11 +888,19 @@
                         <div style="color: #4a5568; font-size: 12px; font-weight: 500; margin-bottom: 8px;">
                             👥 Tracked: ${trackedCount} employee${trackedCount !== 1 ? 's' : ''}
                             ${isCustom ? ' (Custom)' : ''}
+                            ${defaultIndicator ? `<br>${defaultIndicator}` : ''}
                         </div>
                         <div class="company-count">
-                            <label>Count:</label>
+                            <label>Add:</label>
                             <input type="number" id="count-${company}" min="0" max="100" value="0"
                                    onchange="updateCompanySelection('${company}')">
+                        </div>
+                        <div class="company-count" style="margin-top: 5px;">
+                            <label>Default:</label>
+                            <input type="number" id="default-${company}" min="0" max="100"
+                                   value="${defaultCount || 0}"
+                                   onchange="updateDefaultCount('${company}')"
+                                   style="width: 60px;">
                         </div>
                     `;
                     box.onclick = (e) => {
@@ -924,34 +938,46 @@
             if (count > 0) {
                 selectedCompanies[company] = count;
                 box.classList.add('selected');
-                
-                // Check if already tracking employees from this company
-                try {
-                    const response = await fetch(`${API_BASE}/track/company/${company}/status`);
-                    const data = await response.json();
-                    
-                    if (data.currently_tracking > 0) {
-                        // Show warning in the company box
-                        let warningDiv = box.querySelector('.warning');
-                        if (!warningDiv) {
-                            warningDiv = document.createElement('div');
-                            warningDiv.className = 'warning';
-                            warningDiv.style.cssText = 'color: #f56565; font-size: 11px; margin-top: 5px;';
-                            box.appendChild(warningDiv);
-                        }
-                        warningDiv.textContent = `⚠️ Already tracking ${data.currently_tracking} employees`;
-                    }
-                } catch (error) {
-                    console.log('Could not check existing employees');
-                }
             } else {
                 delete selectedCompanies[company];
                 box.classList.remove('selected');
-                const warningDiv = box.querySelector('.warning');
-                if (warningDiv) warningDiv.remove();
             }
         }
-        
+
+        // Update default count for a company
+        async function updateDefaultCount(company) {
+            const defaultInput = document.getElementById(`default-${company}`);
+            const defaultCount = parseInt(defaultInput.value);
+
+            if (defaultCount < 0 || defaultCount > 100) {
+                showMessage('Default count must be between 0 and 100', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/company/${company}/set-default?default_count=${defaultCount}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const message = defaultCount === 0
+                        ? `Auto-refetch disabled for ${company} (default = 0)`
+                        : `Default count for ${company} set to ${defaultCount}`;
+                    showMessage(message, 'success');
+                    // Reload companies to update display
+                    await loadCompanies();
+                } else {
+                    showMessage('Failed to set default count', 'error');
+                }
+            } catch (error) {
+                console.error('Error setting default count:', error);
+                showMessage('Error setting default count: ' + error.message, 'error');
+            }
+        }
+
         // Initialize tracking
         async function initializeTracking() {
             if (Object.keys(selectedCompanies).length === 0) {

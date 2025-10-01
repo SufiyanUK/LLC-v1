@@ -126,6 +126,7 @@ class TrackingDatabase:
             CREATE TABLE IF NOT EXISTS company_config (
                 company TEXT PRIMARY KEY,
                 employee_count INTEGER,
+                default_employee_count INTEGER DEFAULT 5,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -141,7 +142,26 @@ class TrackingDatabase:
                 success BOOLEAN
             )
         """)
-        
+
+        # Auto-migration: Add default_employee_count column if missing
+        try:
+            cursor.execute("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'company_config'
+                AND column_name = 'default_employee_count'
+            """)
+
+            if cursor.fetchone() is None:
+                print("[MIGRATION] Adding default_employee_count column to company_config table...")
+                cursor.execute("""
+                    ALTER TABLE company_config
+                    ADD COLUMN default_employee_count INTEGER DEFAULT 5
+                """)
+                print("[MIGRATION] Column added successfully!")
+        except Exception as e:
+            print(f"[MIGRATION] Note: {e}")
+
         conn.commit()
         conn.close()
     
@@ -205,12 +225,12 @@ class TrackingDatabase:
                 ))
                 added_count += 1
         
-        # Update company config
+        # Update company config - preserve default_employee_count
         cursor.execute("""
-            INSERT INTO company_config (company, employee_count, last_updated)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (company) 
-            DO UPDATE SET 
+            INSERT INTO company_config (company, employee_count, default_employee_count, last_updated)
+            VALUES (%s, %s, 5, %s)
+            ON CONFLICT (company)
+            DO UPDATE SET
                 employee_count = company_config.employee_count + %s,
                 last_updated = %s
         """, (company, added_count, datetime.now(), added_count, datetime.now()))
@@ -574,6 +594,7 @@ class TrackingDatabase:
         cursor.execute("""
             SELECT company, COUNT(*) as employee_count
             FROM tracked_employees
+            WHERE status != 'deleted'
             GROUP BY company
             ORDER BY company
         """)
@@ -584,6 +605,62 @@ class TrackingDatabase:
 
         conn.close()
         return counts
+
+    def set_company_default_count(self, company: str, default_count: int) -> bool:
+        """Set the default employee count for a company"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                INSERT INTO company_config (company, default_employee_count, employee_count, last_updated)
+                VALUES (%s, %s, 0, %s)
+                ON CONFLICT(company) DO UPDATE SET
+                    default_employee_count = %s,
+                    last_updated = %s
+            """, (company, default_count, datetime.now(), default_count, datetime.now()))
+
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"[DATABASE] Error setting default count: {e}")
+            conn.close()
+            return False
+
+    def get_company_default_count(self, company: str) -> Optional[int]:
+        """Get the default employee count for a company"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT default_employee_count
+            FROM company_config
+            WHERE company = %s
+        """, (company,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return row[0] if row else None
+
+    def get_all_company_defaults(self) -> Dict[str, int]:
+        """Get all companies with their default counts"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT company, default_employee_count
+            FROM company_config
+            WHERE default_employee_count IS NOT NULL
+        """)
+
+        defaults = {}
+        for row in cursor.fetchall():
+            defaults[row[0]] = row[1]
+
+        conn.close()
+        return defaults
 
     def fix_existing_linkedin_urls(self):
         """One-time fix for existing LinkedIn URLs in the database"""

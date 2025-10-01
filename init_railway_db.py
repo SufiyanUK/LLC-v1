@@ -158,6 +158,7 @@ def create_tables(db_config):
             CREATE TABLE IF NOT EXISTS company_config (
                 company TEXT PRIMARY KEY,
                 employee_count INTEGER,
+                default_employee_count INTEGER DEFAULT 5,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
